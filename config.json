@@ -1,5 +1,18 @@
 {
   "rss_feeds": [
-    "https://lex.substack.com/feed"
+    "https://aibreakfast.beehiiv.com/feed",
+    "https://www.bensbites.co/feed",
+    "https://www.deeplearning.ai/the-batch/rss.xml",
+    "https://lex.substack.com/feed",
+    "https://medium.com/feed/airbnb-engineering",
+    "https://a16z.com/feed/",
+    "https://www.ycombinator.com/blog/rss",
+    "http://firstround.com/review/feed.xml",
+    "https://www.reforge.com/blog/rss.xml",
+    "https://www.mindtheproduct.com/feed/",
+    "https://www.lennysnewsletter.com/feed",
+    "https://www.saastr.com/feed/",
+    "https://www.investopedia.com/rss/news",
+    "https://feeds.npr.org/1001/rss.xml"
   ]
 }
