@@ -13,20 +13,42 @@ async def send_article_analysis(analysis_dict: dict) -> bool:
         print("Critical error: TELEGRAM_CHAT_ID environment variable not found.")
         return False
     
-    # Escape special characters for MarkdownV2
-    short_summary = analysis_dict.get('short_summary', '')
+    # Get fields from analysis_dict
     title = analysis_dict.get('title', '')
-    long_summary = analysis_dict.get('long_summary', '')
+    comprehensive_summary = analysis_dict.get('comprehensive_summary', '')
+    contrarian_view = analysis_dict.get('contrarian_view', '')
+    practical_application = analysis_dict.get('practical_application', '')
+    glossary = analysis_dict.get('glossary', '')
     link = analysis_dict.get('link', '')
     
-    def escape_markdown(text: str) -> str:
-        return text.replace('-', '\\-').replace('.', '\\.').replace('!', '\\!').replace('(', '\\(').replace(')', '\\)')
+    def escape_markdown_v2(text: str) -> str:
+        # Escape special characters for MarkdownV2: _ * [ ] ( ) ~ ` > # + - = | { } . !
+        chars_to_escape = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+        for char in chars_to_escape:
+            text = text.replace(char, f'\\{char}')
+        return text
     
-    short_esc = escape_markdown(short_summary)
-    title_esc = escape_markdown(title)
-    long_esc = escape_markdown(long_summary)
+    title_esc = escape_markdown_v2(title)
+    comprehensive_summary_esc = escape_markdown_v2(comprehensive_summary)
+    contrarian_view_esc = escape_markdown_v2(contrarian_view)
+    practical_application_esc = escape_markdown_v2(practical_application)
+    glossary_esc = escape_markdown_v2(glossary)
     
-    message = f"*_{short_esc}_*\n\n__{title_esc}__\n\n{long_esc}\n\n[Source Link]({link})"
+    message = f"""*__{title_esc}__*
+
+*خلاصه جامع:*
+{comprehensive_summary_esc}
+
+*دیدگاه مخالف:*
+{contrarian_view_esc}
+
+*کاربرد عملی برای شما:*
+{practical_application_esc}
+
+*واژه‌نامه:*
+{glossary_esc}
+
+[لینک منبع]({link})"""
     
     bot = Bot(token=token)
     

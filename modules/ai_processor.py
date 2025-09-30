@@ -12,7 +12,18 @@ def process_article_in_persian(article_title: str, article_summary: str, article
         api_key=api_key
     )
 
-    # Step 1: Translation to Persian
+    # Step 1: Read user context
+    user_context = ""
+    try:
+        with open('context.txt', 'r', encoding='utf-8') as f:
+            user_context = f.read().strip()
+    except FileNotFoundError:
+        user_context = ""
+    except Exception as e:
+        print(f"Error reading context.txt: {e}")
+        return None
+
+    # Step 2: Translation to Persian
     combined_text = f"{article_title}\n\n{article_summary}"
     system_prompt_translation = "You are an expert translator. Translate the following English text to Persian. Your translation must be accurate, professional, and natural-sounding. Preserve the original meaning and tone. Output only the translated text."
 
@@ -26,76 +37,88 @@ def process_article_in_persian(article_title: str, article_summary: str, article
             temperature=0.5,
             max_tokens=1000
         )
-        persian_text = response_translation.choices[0].message.content
+        translated_text = response_translation.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error during translation API call: {e}")
         return None
 
-    # Step 2: Unstructured Summarization
-    system_prompt_summarization = "You are a world-class strategic analyst. Summarize the following text in detail for a tech founder. Explain the core ideas, the consequences, and the strategic value. Write in natural, flowing Persian."
+    # Step 3: Strategic Analysis
+    system_prompt_analysis = """You are a world-class strategic analyst and a personal advisor to a tech founder. First, carefully read the user's background and goals provided in the [USER CONTEXT]. Then, analyze the [NEWS ARTICLE] text. Your entire response MUST be structured in Persian using these exact delimiters:
+[خلاصه جامع]
+(A detailed paragraph that covers all aspects of the news.)
+[دیدگاه مخالف]
+(A short paragraph expressing the hidden risks, challenges, or a critical contrarian viewpoint of the news.)
+[کاربرد عملی برای کاربر]
+(Based on the user's specific context, provide 2-3 actionable ideas on how they can use the insights from this news in their own FinTech and SaaS projects.)
+[واژه‌نامه]
+(Identify up to 3 key technical or business terms/acronyms from the article and provide a brief, simple explanation for each in the format: '- Term: Explanation')"""
+
+    user_message = f"[USER CONTEXT]\n{user_context}\n\n[NEWS ARTICLE]\n{translated_text}"
 
     try:
-        response_summarization = client.chat.completions.create(
+        response_analysis = client.chat.completions.create(
             model="google/gemma-3-27b-it:free",
             messages=[
-                {"role": "system", "content": system_prompt_summarization},
-                {"role": "user", "content": persian_text}
+                {"role": "system", "content": system_prompt_analysis},
+                {"role": "user", "content": user_message}
             ],
             temperature=0.5,
-            max_tokens=1000
+            max_tokens=1500
         )
-        full_summary_text = response_summarization.choices[0].message.content
+        analysis_text = response_analysis.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error during unstructured summarization API call: {e}")
+        print(f"Error during analysis API call: {e}")
         return None
 
-    # Step 3: Intelligent Extraction
-    system_prompt_extraction = """You are an expert text extractor. From the user's text, extract two specific pieces of information. Structure your response using these exact delimiters:
-[SHORT_SUMMARY]
-(The single best sentence from the text that can serve as a powerful headline)
-[LONG_SUMMARY]
-(The single most important paragraph from the text that best explains the key takeaway for a startup builder)"""
-
+    # Parsing Logic
     try:
-        response_extraction = client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
-            messages=[
-                {"role": "system", "content": system_prompt_extraction},
-                {"role": "user", "content": full_summary_text}
-            ],
-            temperature=0.5,
-            max_tokens=500
-        )
-        response_text = response_extraction.choices[0].message.content
-
-        # Parse the structured response using string manipulation
-        short_parts = response_text.split('[SHORT_SUMMARY]')
-        if len(short_parts) < 2:
-            print("Error: Failed to parse SHORT_SUMMARY section from extraction response.")
+        # Split for [خلاصه جامع]
+        parts1 = analysis_text.split('[خلاصه جامع]')
+        if len(parts1) < 2:
+            print("Error: Failed to parse [خلاصه جامع] section from analysis response.")
             return None
+        remaining1 = parts1[1]
 
-        long_parts = short_parts[1].split('[LONG_SUMMARY]')
-        if len(long_parts) < 2:
-            print("Error: Failed to parse LONG_SUMMARY section from extraction response.")
+        # Split for [دیدگاه مخالف]
+        parts2 = remaining1.split('[دیدگاه مخالف]')
+        if len(parts2) < 2:
+            print("Error: Failed to parse [دیدگاه مخالف] section from analysis response.")
             return None
+        comprehensive_summary = parts2[0].strip()
+        remaining2 = parts2[1]
 
-        short_summary = long_parts[0].strip()
-        long_summary = long_parts[1].strip()
+        # Split for [کاربرد عملی برای کاربر]
+        parts3 = remaining2.split('[کاربرد عملی برای کاربر]')
+        if len(parts3) < 2:
+            print("Error: Failed to parse [کاربرد عملی برای کاربر] section from analysis response.")
+            return None
+        contrarian_view = parts3[0].strip()
+        remaining3 = parts3[1]
 
-        # Validation: Check if both summaries were extracted
-        if not short_summary or not long_summary:
-            print("Error: One or both summaries are missing or empty after parsing.")
+        # Split for [واژه‌نامه]
+        parts4 = remaining3.split('[واژه‌نامه]')
+        if len(parts4) < 2:
+            print("Error: Failed to parse [واژه‌نامه] section from analysis response.")
+            return None
+        practical_application = parts4[0].strip()
+        glossary = parts4[1].strip()
+
+        # Validation: Check if all sections were extracted
+        if not all([comprehensive_summary, contrarian_view, practical_application, glossary]):
+            print("Error: One or more sections are missing or empty after parsing.")
             return None
 
     except Exception as e:
-        print(f"Error during extraction API call: {e}")
+        print(f"Error during parsing analysis response: {e}")
         return None
 
     # Final output dictionary
     final_dict = {
         'title': article_title,
         'link': article_link,
-        'short_summary': short_summary,
-        'long_summary': long_summary
+        'comprehensive_summary': comprehensive_summary,
+        'contrarian_view': contrarian_view,
+        'practical_application': practical_application,
+        'glossary': glossary
     }
     return final_dict
