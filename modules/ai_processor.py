@@ -2,15 +2,15 @@ import os
 from openai import OpenAI
 
 def process_article_in_persian(article_title: str, article_summary: str, article_link: str) -> dict | None:
+    # Use the more reliable model designed for instruction following
+    RELIABLE_MODEL = "qwen/qwen3-235b-a22b:free"
+    
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
         print("Error: OPENROUTER_API_KEY environment variable not found.")
         return None
 
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key
-    )
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
     # Step 1: Read user context
     user_context = ""
@@ -18,24 +18,20 @@ def process_article_in_persian(article_title: str, article_summary: str, article
         with open('context.txt', 'r', encoding='utf-8') as f:
             user_context = f.read().strip()
     except FileNotFoundError:
+        print("Warning: context.txt not found. Proceeding without user context.")
         user_context = ""
-    except Exception as e:
-        print(f"Error reading context.txt: {e}")
-        return None
 
-    # Step 2: Translation to Persian
-    combined_text = f"{article_title}\n\n{article_summary}"
-    system_prompt_translation = "You are an expert translator. Translate the following English text to Persian. Your translation must be accurate, professional, and natural-sounding. Preserve the original meaning and tone. Output only the translated text."
-
+    # Step 2: Translation
+    combined_text = f"Title: {article_title}\n\nSummary: {article_summary}"
     try:
         response_translation = client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
+            model=RELIABLE_MODEL,
             messages=[
-                {"role": "system", "content": system_prompt_translation},
+                {"role": "system", "content": "You are an expert translator. Translate the following English text to Persian. Output only the translated text."},
                 {"role": "user", "content": combined_text}
             ],
-            temperature=0.5,
-            max_tokens=1000
+            temperature=0.3,
+            max_tokens=1500
         )
         translated_text = response_translation.choices[0].message.content.strip()
     except Exception as e:
@@ -43,82 +39,49 @@ def process_article_in_persian(article_title: str, article_summary: str, article
         return None
 
     # Step 3: Strategic Analysis
-    system_prompt_analysis = """You are a world-class strategic analyst and a personal advisor to a tech founder. First, carefully read the user's background and goals provided in the [USER CONTEXT]. Then, analyze the [NEWS ARTICLE] text. Your entire response MUST be structured in Persian using these exact delimiters:
+    system_prompt_analysis = """You are a world-class strategic analyst. Analyze the [NEWS ARTICLE] based on the [USER CONTEXT]. Structure your entire response in Persian using these exact delimiters:
 [خلاصه جامع]
-(A detailed paragraph that covers all aspects of the news.)
+(A detailed paragraph covering all aspects of the news.)
 [دیدگاه مخالف]
-(A short paragraph expressing the hidden risks, challenges, or a critical contrarian viewpoint of the news.)
+(A short paragraph with the hidden risks or a critical contrarian viewpoint.)
 [کاربرد عملی برای کاربر]
-(Based on the user's specific context, provide 2-3 actionable ideas on how they can use the insights from this news in their own FinTech and SaaS projects.)
+(Based on the user's context, provide 2-3 actionable ideas for their FinTech/SaaS projects.)
 [واژه‌نامه]
-(Identify up to 3 key technical or business terms/acronyms from the article and provide a brief, simple explanation for each in the format: '- Term: Explanation')"""
-
+(Explain up to 3 key terms from the article in the format: '- Term: Explanation')"""
+    
     user_message = f"[USER CONTEXT]\n{user_context}\n\n[NEWS ARTICLE]\n{translated_text}"
-
+    
     try:
         response_analysis = client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
+            model=RELIABLE_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt_analysis},
                 {"role": "user", "content": user_message}
             ],
             temperature=0.5,
-            max_tokens=1500
+            max_tokens=2000
         )
         analysis_text = response_analysis.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error during analysis API call: {e}")
         return None
 
-    # Parsing Logic
+    # Robust Parsing Logic
     try:
-        # Split for [خلاصه جامع]
-        parts1 = analysis_text.split('[خلاصه جامع]')
-        if len(parts1) < 2:
-            print("Error: Failed to parse [خلاصه جامع] section from analysis response.")
-            return None
-        remaining1 = parts1[1]
+        comprehensive_summary = analysis_text.split('[خلاصه جامع]')[1].split('[دیدگاه مخالف]')[0].strip()
+        contrarian_view = analysis_text.split('[دیدگاه مخالف]')[1].split('[کاربرد عملی برای کاربر]')[0].strip()
+        practical_application = analysis_text.split('[کاربرد عملی برای کاربر]')[1].split('[واژه‌نامه]')[0].strip()
+        glossary = analysis_text.split('[واژه‌نامه]')[1].strip()
 
-        # Split for [دیدگاه مخالف]
-        parts2 = remaining1.split('[دیدگاه مخالف]')
-        if len(parts2) < 2:
-            print("Error: Failed to parse [دیدگاه مخالف] section from analysis response.")
-            return None
-        comprehensive_summary = parts2[0].strip()
-        remaining2 = parts2[1]
-
-        # Split for [کاربرد عملی برای کاربر]
-        parts3 = remaining2.split('[کاربرد عملی برای کاربر]')
-        if len(parts3) < 2:
-            print("Error: Failed to parse [کاربرد عملی برای کاربر] section from analysis response.")
-            return None
-        contrarian_view = parts3[0].strip()
-        remaining3 = parts3[1]
-
-        # Split for [واژه‌نامه]
-        parts4 = remaining3.split('[واژه‌نامه]')
-        if len(parts4) < 2:
-            print("Error: Failed to parse [واژه‌نامه] section from analysis response.")
-            return None
-        practical_application = parts4[0].strip()
-        glossary = parts4[1].strip()
-
-        # Validation: Check if all sections were extracted
         if not all([comprehensive_summary, contrarian_view, practical_application, glossary]):
-            print("Error: One or more sections are missing or empty after parsing.")
-            return None
+            raise ValueError("One or more sections are missing after parsing.")
 
-    except Exception as e:
-        print(f"Error during parsing analysis response: {e}")
+    except (IndexError, ValueError) as e:
+        print(f"Error parsing analysis response: {e}. Full response was:\n{analysis_text}")
         return None
 
-    # Final output dictionary
-    final_dict = {
-        'title': article_title,
-        'link': article_link,
-        'comprehensive_summary': comprehensive_summary,
-        'contrarian_view': contrarian_view,
-        'practical_application': practical_application,
-        'glossary': glossary
+    return {
+        'title': article_title, 'link': article_link,
+        'comprehensive_summary': comprehensive_summary, 'contrarian_view': contrarian_view,
+        'practical_application': practical_application, 'glossary': glossary
     }
-    return final_dict

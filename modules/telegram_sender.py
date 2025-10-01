@@ -60,3 +60,25 @@ async def send_article_analysis(analysis_dict: dict) -> bool:
         except TelegramError as e:
             print(f"Error sending to Telegram: {e}")
             return False
+async def send_audio_file(filepath: str) -> bool:
+    """Sends an audio file to the specified chat."""
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+
+    if not token or not chat_id:
+        print("Critical error: Telegram credentials not found for sending audio.")
+        return False
+
+    bot = Bot(token=token)
+    async with bot:
+        try:
+            with open(filepath, 'rb') as audio_file:
+                await bot.send_audio(chat_id=chat_id, audio=audio_file)
+            print("Podcast sent to Telegram successfully.")
+            return True
+        except TelegramError as e:
+            print(f"Error sending audio to Telegram: {e}")
+            return False
+        except FileNotFoundError:
+            print(f"Error: Audio file not found at {filepath}")
+            return False
