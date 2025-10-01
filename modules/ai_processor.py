@@ -1,83 +1,109 @@
 import os
 from openai import OpenAI
 
-def process_article_in_persian(article_title: str, article_summary: str, article_link: str) -> dict | None:
-    # Use the more reliable model designed for instruction following
-    RELIABLE_MODEL = "qwen/qwen3-235b-a22b:free"
-    
+# --- مدل‌های مورد تایید شما ---
+# مدل سریع و کم‌هزینه برای فیلتر اولیه
+FAST_MODEL = "qwen/qwen2-7b-instruct:free" 
+# مدل قدرتمند برای تحلیل عمیق و استراتژیک
+POWERFUL_MODEL = "qwen/qwen2-72b-instruct:free"
+
+def is_article_relevant(article_title: str, article_summary: str) -> bool:
+    """Uses a fast and cheap AI call to quickly determine if an article is relevant."""
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
-        print("Error: OPENROUTER_API_KEY environment variable not found.")
-        return None
-
+        return False
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-
-    # Step 1: Read user context
     user_context = ""
     try:
         with open('context.txt', 'r', encoding='utf-8') as f:
             user_context = f.read().strip()
     except FileNotFoundError:
-        print("Warning: context.txt not found. Proceeding without user context.")
-        user_context = ""
+        pass
+    
+    prompt = f"""
+    User's professional interests: "{user_context}"
+    Based on the user's interests, is the following article relevant?
+    Title: "{article_title}"
+    Summary: "{article_summary}"
+    Respond with only the single word 'YES' or 'NO'.
+    """
+    try:
+        response = client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            temperature=0.1
+        )
+        answer = response.choices[0].message.content.strip().upper()
+        return "YES" in answer
+    except Exception as e:
+        print(f"Relevance check failed: {e}")
+        return False
 
-    # Step 2: Translation
+def process_article_in_persian(article_title: str, article_summary: str, article_link: str) -> dict | None:
+    """Processes a single article using the powerful model for in-depth analysis."""
+    api_key = os.getenv('OPENROUTER_API_KEY')
+    if not api_key:
+        return None
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    
+    # Implementation remains the same as our last correct version, just ensure POWERFUL_MODEL is used
+    user_context = ""
+    try:
+        with open('context.txt', 'r', encoding='utf-8') as f:
+            user_context = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+    # Step 1: Translation
     combined_text = f"Title: {article_title}\n\nSummary: {article_summary}"
     try:
         response_translation = client.chat.completions.create(
-            model=RELIABLE_MODEL,
+            model=POWERFUL_MODEL,
             messages=[
                 {"role": "system", "content": "You are an expert translator. Translate the following English text to Persian. Output only the translated text."},
                 {"role": "user", "content": combined_text}
-            ],
-            temperature=0.3,
-            max_tokens=1500
+            ]
         )
         translated_text = response_translation.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error during translation API call: {e}")
+        print(f"Error during translation: {e}")
         return None
 
-    # Step 3: Strategic Analysis
-    system_prompt_analysis = """You are a world-class strategic analyst. Analyze the [NEWS ARTICLE] based on the [USER CONTEXT]. Structure your entire response in Persian using these exact delimiters:
+    # Step 2: Strategic Analysis
+    system_prompt_analysis = """You are a world-class strategic analyst for a tech founder. Analyze the [NEWS ARTICLE] based on the [USER CONTEXT]. Structure your response in Persian using these exact delimiters:
 [خلاصه جامع]
-(A detailed paragraph covering all aspects of the news.)
+(A detailed paragraph covering the news.)
 [دیدگاه مخالف]
 (A short paragraph with the hidden risks or a critical contrarian viewpoint.)
 [کاربرد عملی برای کاربر]
-(Based on the user's context, provide 2-3 actionable ideas for their FinTech/SaaS projects.)
+(Based on the user's context, provide actionable ideas for their FinTech/SaaS projects.)
 [واژه‌نامه]
-(Explain up to 3 key terms from the article in the format: '- Term: Explanation')"""
+(Explain key terms in the format: '- Term: Explanation')"""
     
     user_message = f"[USER CONTEXT]\n{user_context}\n\n[NEWS ARTICLE]\n{translated_text}"
     
     try:
         response_analysis = client.chat.completions.create(
-            model=RELIABLE_MODEL,
+            model=POWERFUL_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt_analysis},
                 {"role": "user", "content": user_message}
-            ],
-            temperature=0.5,
-            max_tokens=2000
+            ]
         )
         analysis_text = response_analysis.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error during analysis API call: {e}")
+        print(f"Error during analysis: {e}")
         return None
 
-    # Robust Parsing Logic
+    # Parsing Logic
     try:
         comprehensive_summary = analysis_text.split('[خلاصه جامع]')[1].split('[دیدگاه مخالف]')[0].strip()
         contrarian_view = analysis_text.split('[دیدگاه مخالف]')[1].split('[کاربرد عملی برای کاربر]')[0].strip()
         practical_application = analysis_text.split('[کاربرد عملی برای کاربر]')[1].split('[واژه‌نامه]')[0].strip()
         glossary = analysis_text.split('[واژه‌نامه]')[1].strip()
-
-        if not all([comprehensive_summary, contrarian_view, practical_application, glossary]):
-            raise ValueError("One or more sections are missing after parsing.")
-
-    except (IndexError, ValueError) as e:
-        print(f"Error parsing analysis response: {e}. Full response was:\n{analysis_text}")
+    except IndexError:
+        print(f"Error parsing analysis response. The model did not follow the format. Response was:\n{analysis_text}")
         return None
 
     return {

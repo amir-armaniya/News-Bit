@@ -2,13 +2,14 @@ import json
 import feedparser
 from datetime import datetime, timedelta, timezone
 import time
+from modules import memory_manager # Import the new memory manager
 
 def fetch_recent_articles(config_path: str) -> list:
-    """
-    Fetch recent articles from RSS feeds specified in the config file.
-    Only includes articles published in the last 7 days.
-    """
-    # Read and parse config
+    # --- NEW: Load already processed links from memory ---
+    processed_links = memory_manager.load_processed_links()
+    print(f"Loaded {len(processed_links)} links from memory.")
+    
+    # Read and parse config (rest of the function is similar)
     try:
         with open(config_path, 'r') as f:
             config = json.load(f)
@@ -40,6 +41,10 @@ def fetch_recent_articles(config_path: str) -> list:
                 continue
 
             for entry in feed.entries:
+                # --- NEW: Check if link has been processed before ---
+                if entry.link in processed_links:
+                    continue
+
                 pub_date = entry.get('published_parsed')
                 if pub_date:
                     # Convert struct_time to datetime with UTC timezone
@@ -53,7 +58,7 @@ def fetch_recent_articles(config_path: str) -> list:
                         articles.append(article)
                         new_articles_count += 1
 
-            print(f"   Found {new_articles_count} new articles from this feed.")
+            print(f"   Found {new_articles_count} new, unprocessed articles from this feed.")
         except Exception as e:
             print(f"   Error fetching feed: {e}")
             continue
