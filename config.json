@@ -1,18 +1,84 @@
 {
   "rss_feeds": [
-    "https://aibreakfast.beehiiv.com/feed",
-    "https://www.bensbites.co/feed",
-    "https://www.deeplearning.ai/the-batch/rss.xml",
-    "https://lex.substack.com/feed",
-    "https://medium.com/feed/airbnb-engineering",
-    "https://a16z.com/feed/",
-    "https://www.ycombinator.com/blog/rss",
-    "http://firstround.com/review/feed.xml",
-    "https://www.reforge.com/blog/rss.xml",
-    "https://www.mindtheproduct.com/feed/",
-    "https://www.lennysnewsletter.com/feed",
-    "https://www.saastr.com/feed/",
-    "https://www.investopedia.com/rss/news",
-    "https://feeds.npr.org/1001/rss.xml"
+    {
+      "name": "AI Breakfast",
+      "url": "https://aibreakfast.beehiiv.com/feed"
+    },
+    {
+      "name": "Ben's Bites",
+      "url": "https://www.bensbites.co/feed"
+    },
+    {
+      "name": "DeepLearning.AI",
+      "url": "https://www.deeplearning.ai/the-batch/rss.xml"
+    },
+    {
+      "name": "Lenny's Newsletter",
+      "url": "https://www.lennysnewsletter.com/feed"
+    },
+    {
+      "name": "SaaStr",
+      "url": "https://www.saastr.com/feed/"
+    },
+    {
+      "name": "Reforge",
+      "url": "https://www.reforge.com/blog/rss.xml"
+    },
+    {
+      "name": "Mind the Product",
+      "url": "https://www.mindtheproduct.com/feed/"
+    },
+    {
+      "name": "a16z",
+      "url": "https://a16z.com/feed/"
+    },
+    {
+      "name": "Y Combinator",
+      "url": "https://www.ycombinator.com/blog/rss"
+    },
+    {
+      "name": "First Round Review",
+      "url": "http://firstround.com/review/feed.xml"
+    },
+    {
+      "name": "Airbnb Engineering",
+      "url": "https://medium.com/feed/airbnb-engineering"
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/"
+    },
+    {
+      "name": "VentureBeat",
+      "url": "https://venturebeat.com/feed/"
+    },
+    {
+      "name": "Product Hunt",
+      "url": "https://www.producthunt.com/feed.rss"
+    },
+    {
+      "name": "Hacker News",
+      "url": "https://hnrss.org/frontpage"
+    },
+    {
+      "name": "The Motley Fool",
+      "url": "https://www.fool.com/feed/the-motley-fool"
+    },
+    {
+      "name": "FinTech Futures",
+      "url": "https://www.fintechfutures.com/feed/"
+    },
+    {
+      "name": "CB Insights",
+      "url": "https://www.cbinsights.com/blog/rss/"
+    },
+    {
+      "name": "Andreessen Horowitz (a16z) - Future",
+      "url": "https://a16z.com/feed/future"
+    },
+    {
+      "name": "Harvard Business Review",
+      "url": "https://hbr.org/feed"
+    }
   ]
 }

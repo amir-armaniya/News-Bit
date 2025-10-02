@@ -2,9 +2,9 @@ import os
 from openai import OpenAI
 
 # مدل سریع و کم‌هزینه برای فیلتر اولیه
-FAST_MODEL = "qwen/qwen3-14b:free" 
+FAST_MODEL = "google/gemma-3-12b-it:free" 
 # مدل قدرتمند برای تحلیل عمیق و استراتژیک
-POWERFUL_MODEL = "qwen/qwen3-235b-a22b:free"
+POWERFUL_MODEL = "google/gemma-3-27b-it:free"
 
 def is_article_relevant(article_title: str, article_summary: str) -> bool:
     api_key = os.getenv('OPENROUTER_API_KEY')
@@ -18,31 +18,39 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
     except FileNotFoundError:
         pass
     
-    # اصلاح پرامپت برای انعطاف‌پذیری بیشتر
     prompt = f"""
-    Analyze the user's professional interests: "{user_context}"
-    Now, analyze the following article:
+    You are an expert assistant for a tech startup founder in Iran.
+    The founder's interests are: "{user_context}"
+    
+    Analyze the following article and determine if it's relevant:
     Title: "{article_title}"
     Summary: "{article_summary}"
-
-    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, startup funding, technology trends, business strategy, innovation, software development, or digital transformation?
-    Consider broader related topics that might be valuable for a tech professional.
-    Even if the article is not directly about these topics, but discusses related concepts that could provide insights for a tech professional, consider it relevant.
-    Your answer must be only the single word 'YES' or 'NO'.
+    
+    Is this article relevant to the founder's work in SaaS, FinTech, AI, product management, funding, or team building?
+    Consider articles about market trends, new technologies, startup strategies, or case studies.
+    
+    Answer with only 'YES' or 'NO'.
     """
     try:
         response = client.chat.completions.create(
             model=FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=10,  # افزایش max_tokens
             temperature=0.1
         )
         answer = response.choices[0].message.content.strip().upper()
         print(f"   API Response: {answer}")  # اضافه کردن لاگ برای دیباگ
+        
+        # اگر پاسخ خالی بود، مقاله را مرتبط در نظر بگیر
+        if not answer:
+            print("   -> Empty API response, treating as RELEVANT")
+            return True
+            
         return "YES" in answer
     except Exception as e:
         print(f"Relevance check failed: {e}")
-        return False
+        # در صورت خطا، مقاله را مرتبط در نظر بگیر
+        return True
 
 def process_article_in_persian(article_title: str, article_summary: str, article_link: str) -> dict | None:
     api_key = os.getenv('OPENROUTER_API_KEY')

@@ -1,14 +1,19 @@
+# modules/web_scraper.py
 import requests
 from bs4 import BeautifulSoup
 import re
 
 def scrape_url(url: str) -> dict | None:
+    """
+    Scrapes the title and main text content from a given URL.
+    Returns a dictionary with 'title' and 'text' keys, or None on failure.
+    """
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
@@ -32,6 +37,7 @@ def scrape_url(url: str) -> dict | None:
             main_text = '\n'.join([p.get_text().strip() for p in paragraphs if p.get_text().strip()])
         
         if not main_text:
+            print(f"Could not extract main text from {url}")
             return None
             
         # Limit text to reasonable length for AI
@@ -39,6 +45,9 @@ def scrape_url(url: str) -> dict | None:
         
         return {'title': title, 'text': main_text}
         
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL {url}: {e}")
+        return None
     except Exception as e:
-        print(f"Error scraping URL {url}: {e}")
+        print(f"An unexpected error occurred while scraping {url}: {e}")
         return None

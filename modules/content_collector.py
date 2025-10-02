@@ -1,17 +1,22 @@
+# modules/content_collector.py
 import json
 import feedparser
 from datetime import datetime, timedelta, timezone
 import time
-from modules import memory_manager # Import the new memory manager
+from modules import memory_manager
 
 def fetch_recent_articles(config_path: str) -> list:
-    # --- NEW: Load already processed links from memory ---
+    """
+    Fetches recent articles from all RSS feeds defined in the config file.
+    Returns a list of article dictionaries.
+    """
+    # --- Load already processed links from memory ---
     processed_links = memory_manager.load_processed_links()
     print(f"Loaded {len(processed_links)} links from memory.")
     
-    # Read and parse config (rest of the function is similar)
+    # Read and parse config
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
     except FileNotFoundError:
         print(f"Config file not found: {config_path}")
@@ -20,19 +25,28 @@ def fetch_recent_articles(config_path: str) -> list:
         print("Invalid JSON in config file.")
         return []
 
-    rss_feeds = config.get('rss_feeds', [])
-    if not rss_feeds:
+    # --- MODIFIED: Get feeds from the new structure ---
+    feeds_config = config.get('rss_feeds', [])
+    if not feeds_config:
         print("No RSS feeds configured.")
         return []
 
     articles = []
-    print(f"Starting to fetch articles from {len(rss_feeds)} feeds...")
+    print(f"Starting to fetch articles from {len(feeds_config)} feeds...")
 
     # Cutoff for articles: last 7 days
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
-    for url in rss_feeds:
-        print(f"-> Checking feed: {url}")
+    # --- MODIFIED: Loop through the new feed structure ---
+    for feed_info in feeds_config:
+        # Get URL and name from the dictionary
+        url = feed_info.get('url')
+        name = feed_info.get('name', url) # Use URL as fallback name
+        
+        if not url:
+            continue
+
+        print(f"-> Checking feed: {name} ({url})")
         new_articles_count = 0
         try:
             feed = feedparser.parse(url)
@@ -41,7 +55,7 @@ def fetch_recent_articles(config_path: str) -> list:
                 continue
 
             for entry in feed.entries:
-                # --- NEW: Check if link has been processed before ---
+                # --- Check if link has been processed before ---
                 if entry.link in processed_links:
                     continue
 
@@ -53,15 +67,113 @@ def fetch_recent_articles(config_path: str) -> list:
                         article = {
                             'title': entry.title,
                             'link': entry.link,
-                            'summary': entry.summary
+                            'summary': entry.summary,
+                            'source': name  # --- NEW: Add source name to article
                         }
                         articles.append(article)
                         new_articles_count += 1
+                        # --- NEW: Add link to memory immediately to avoid duplicates
+                        processed_links.add(entry.link)
 
             print(f"   Found {new_articles_count} new, unprocessed articles from this feed.")
         except Exception as e:
             print(f"   Error fetching feed: {e}")
             continue
+        
+        # Be a good citizen to the feed server
+        time.sleep(1)
 
+    # --- NEW: Save the updated list of processed links
+    memory_manager.save_processed_links(processed_links)
+    
+    print(f"\nFinished fetching. Total new articles found: {len(articles)}")
+    return articles# modules/content_collector.py
+import json
+import feedparser
+from datetime import datetime, timedelta, timezone
+import time
+from modules import memory_manager
+
+def fetch_recent_articles(config_path: str) -> list:
+    """
+    Fetches recent articles from all RSS feeds defined in the config file.
+    Returns a list of article dictionaries.
+    """
+    # --- Load already processed links from memory ---
+    processed_links = memory_manager.load_processed_links()
+    print(f"Loaded {len(processed_links)} links from memory.")
+    
+    # Read and parse config
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print(f"Config file not found: {config_path}")
+        return []
+    except json.JSONDecodeError:
+        print("Invalid JSON in config file.")
+        return []
+
+    # --- MODIFIED: Get feeds from the new structure ---
+    feeds_config = config.get('rss_feeds', [])
+    if not feeds_config:
+        print("No RSS feeds configured.")
+        return []
+
+    articles = []
+    print(f"Starting to fetch articles from {len(feeds_config)} feeds...")
+
+    # Cutoff for articles: last 7 days
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
+    # --- MODIFIED: Loop through the new feed structure ---
+    for feed_info in feeds_config:
+        # Get URL and name from the dictionary
+        url = feed_info.get('url')
+        name = feed_info.get('name', url) # Use URL as fallback name
+        
+        if not url:
+            continue
+
+        print(f"-> Checking feed: {name} ({url})")
+        new_articles_count = 0
+        try:
+            feed = feedparser.parse(url)
+            if feed.bozo:
+                print(f"   Error parsing feed: {feed.bozo_exception}")
+                continue
+
+            for entry in feed.entries:
+                # --- Check if link has been processed before ---
+                if entry.link in processed_links:
+                    continue
+
+                pub_date = entry.get('published_parsed')
+                if pub_date:
+                    # Convert struct_time to datetime with UTC timezone
+                    pub_datetime = datetime(*pub_date[:6], tzinfo=timezone.utc)
+                    if pub_datetime >= cutoff:
+                        article = {
+                            'title': entry.title,
+                            'link': entry.link,
+                            'summary': entry.summary,
+                            'source': name  # --- NEW: Add source name to article
+                        }
+                        articles.append(article)
+                        new_articles_count += 1
+                        # --- NEW: Add link to memory immediately to avoid duplicates
+                        processed_links.add(entry.link)
+
+            print(f"   Found {new_articles_count} new, unprocessed articles from this feed.")
+        except Exception as e:
+            print(f"   Error fetching feed: {e}")
+            continue
+        
+        # Be a good citizen to the feed server
+        time.sleep(1)
+
+    # --- NEW: Save the updated list of processed links
+    memory_manager.save_processed_links(processed_links)
+    
     print(f"\nFinished fetching. Total new articles found: {len(articles)}")
     return articles
