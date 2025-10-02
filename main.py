@@ -2,6 +2,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 import socket
+import time # Import the time library
 import modules.content_collector
 import modules.ai_processor
 import modules.telegram_sender
@@ -29,6 +30,9 @@ async def main():
             print("   -> RELEVANT")
         else:
             print("   -> SKIPPED (Not Relevant)")
+        
+        # --- NEW: Add a delay to respect API rate limits ---
+        time.sleep(8) # Wait for 8 seconds before the next request
     
     if not relevant_articles:
         print("No relevant articles found after filtering. Exiting.")
