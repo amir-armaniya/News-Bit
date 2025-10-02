@@ -1,18 +1,22 @@
 name: Strategic Analysis Assistant
 
 on:
+  # فعال‌سازی خودکار هر دوشنبه ساعت 7 صبح به وقت UTC
   schedule:
     - cron: '0 7 * * 1'
+  
+  # فعال‌سازی دستی از طریق GitHub UI یا API (مثل Cloudflare Worker)
   workflow_dispatch:
     inputs:
       on_demand_input:
         description: 'URL or command from Telegram bot'
         required: false
-        default: ''
+        default: '' # مقدار پیش‌فرض خالی
 
 jobs:
   run-analysis:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,8 +29,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # --- این استپ فقط برای تحلیل بر اساس تقاضا اجرا می‌شود ---
       - name: Run On-Demand Analysis
-        if: github.event.inputs.on_demand_input != ''
+        # شرط اجرا: اگر تریگر از نوع workflow_dispatch بود و ورودی خالی نبود
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.on_demand_input != ''
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -34,16 +40,20 @@ jobs:
           ON_DEMAND_INPUT: ${{ github.event.inputs.on_demand_input }}
         run: python on_demand_analyzer.py
 
+      # --- این استپ فقط برای تحلیل هفتگی خودکار اجرا می‌شود ---
       - name: Run Scheduled Weekly Analysis
-        if: github.event.inputs.on_demand_input == ''
+        # شرط اجرا: اگر تریگر از نوع schedule بود
+        if: github.event_name == 'schedule'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
 
+      # --- این استپ فقط بعد از تحلیل هفتگی خودکار اجرا می‌شود ---
       - name: Commit and push memory file
-        if: github.event.inputs.on_demand_input == ''
+        # شرط اجرا: اگر تریگر از نوع schedule بود
+        if: github.event_name == 'schedule'
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions-bot@github.com'
