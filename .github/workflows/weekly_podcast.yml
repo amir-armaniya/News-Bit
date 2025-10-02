@@ -35,7 +35,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ON_DEMAND_INPUT: ${{ github.event.inputs.on_demand_input }}
-        run: python on_demand_analyzer.py # A new script we will create
+        run: python on_demand_analyzer.py
 
       - name: Run Scheduled Weekly Analysis (if not on-demand)
         if: github.event.inputs.on_demand_input == ''
@@ -46,7 +46,7 @@ jobs:
         run: python main.py
 
       - name: Commit and push memory file
-        if: github.event.inputs.on_demand_input == '' # Only commit memory on scheduled runs
+        if: github.event.inputs.on_demand_input == ''
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions-bot@github.com'

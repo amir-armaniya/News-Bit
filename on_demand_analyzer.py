@@ -4,7 +4,7 @@ from modules import ai_processor, telegram_sender, web_scraper
 
 async def main():
     user_input = os.getenv('ON_DEMAND_INPUT', '').strip()
-    
+
     if not user_input:
         print("No on-demand input provided. Exiting.")
         return
@@ -16,14 +16,14 @@ async def main():
         # Placeholder for adding a new source
         await telegram_sender.send_text_to_telegram("Functionality to add sources is not yet implemented.")
         return
-        
+
     # --- URL Analysis ---
     if user_input.startswith(('http://', 'https://')):
         print(f"Input is a URL. Starting web scraping for: {user_input}")
-        
+
         # Scrape the content from the URL
         scraped_content = web_scraper.scrape_url(user_input)
-        
+
         if not scraped_content:
             await telegram_sender.send_text_to_telegram(f"Sorry, I could not extract content from the URL: {user_input}")
             return

@@ -7,7 +7,6 @@ FAST_MODEL = "qwen/qwen3-14b:free"
 POWERFUL_MODEL = "qwen/qwen3-235b-a22b:free"
 
 def is_article_relevant(article_title: str, article_summary: str) -> bool:
-    # This function remains the same as our last correct version.
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
         return False
@@ -19,14 +18,16 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
     except FileNotFoundError:
         pass
     
+    # اصلاح پرامپت برای انعطاف‌پذیری بیشتر
     prompt = f"""
     Analyze the user's professional interests: "{user_context}"
     Now, analyze the following article:
     Title: "{article_title}"
     Summary: "{article_summary}"
 
-    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, startup funding, technology trends, business strategy, or innovation?
+    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, startup funding, technology trends, business strategy, innovation, software development, or digital transformation?
     Consider broader related topics that might be valuable for a tech professional.
+    Even if the article is not directly about these topics, but discusses related concepts that could provide insights for a tech professional, consider it relevant.
     Your answer must be only the single word 'YES' or 'NO'.
     """
     try:
