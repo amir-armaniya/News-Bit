@@ -25,7 +25,8 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
     Title: "{article_title}"
     Summary: "{article_summary}"
 
-    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, or startup funding?
+    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, startup funding, technology trends, business strategy, or innovation?
+    Consider broader related topics that might be valuable for a tech professional.
     Your answer must be only the single word 'YES' or 'NO'.
     """
     try:
@@ -36,6 +37,7 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
             temperature=0.1
         )
         answer = response.choices[0].message.content.strip().upper()
+        print(f"   API Response: {answer}")  # اضافه کردن لاگ برای دیباگ
         return "YES" in answer
     except Exception as e:
         print(f"Relevance check failed: {e}")

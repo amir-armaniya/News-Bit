@@ -2,7 +2,6 @@ import os
 import asyncio
 from dotenv import load_dotenv
 import socket
-import time # Import the time library
 import modules.content_collector
 import modules.ai_processor
 import modules.telegram_sender
@@ -17,6 +16,8 @@ async def main():
 
     if not all_articles:
         print("No new articles found. Exiting.")
+        # بازخورد به کاربر: هیچ مقاله جدیدی پیدا نشد
+        await modules.telegram_sender.send_message("هیچ مقاله جدیدی برای تحلیل پیدا نشد.")
         return
 
     print(f"Fetched {len(all_articles)} total articles. Starting relevance filtering...")
@@ -30,12 +31,11 @@ async def main():
             print("   -> RELEVANT")
         else:
             print("   -> SKIPPED (Not Relevant)")
-        
-        # --- NEW: Add a delay to respect API rate limits ---
-        time.sleep(8) # Wait for 8 seconds before the next request
     
     if not relevant_articles:
         print("No relevant articles found after filtering. Exiting.")
+        # بازخورد به کاربر: مقالات پیدا شدند اما هیچ‌کدام مرتبط نبودند
+        await modules.telegram_sender.send_message("مقالات جدید پیدا شدند، اما هیچ‌کدام با حوزه کاری شما مرتبط نبودند.")
         return
         
     print(f"\nFound {len(relevant_articles)} relevant articles. Processing...")
@@ -53,6 +53,10 @@ async def main():
         else:
             print(f"Warning: Failed to analyze article: {article['title']}. Skipping.")
 
+        await asyncio.sleep(8) # جایگزین time.sleep(8) در توابع async
+        
+    # بازخورد به کاربر: پردازش مقالات مرتبط با موفقیت انجام شد
+    await modules.telegram_sender.send_message(f"پردازش {len(relevant_articles)} مقاله مرتبط با موفقیت انجام شد.")
     print("--- All articles processed. Mission complete. ---")
 
 if __name__ == "__main__":
