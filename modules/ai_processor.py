@@ -1,3 +1,4 @@
+# modules/ai_processor.py
 import os
 from openai import OpenAI
 
@@ -9,6 +10,7 @@ POWERFUL_MODEL = "google/gemma-3-27b-it:free"
 def is_article_relevant(article_title: str, article_summary: str) -> bool:
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
+        print("OPENROUTER_API_KEY not found.")
         return False
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     user_context = ""
@@ -55,6 +57,7 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
 def process_article_in_persian(article_title: str, article_summary: str, article_link: str) -> dict | None:
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
+        print("OPENROUTER_API_KEY not found.")
         return None
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     

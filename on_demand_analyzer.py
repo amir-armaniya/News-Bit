@@ -35,6 +35,10 @@ async def main():
         )
 
         if analysis_dict:
+            # Save the analysis to memory
+            from modules import memory_manager
+            memory_manager.save_analysis(analysis_dict)
+            
             await telegram_sender.send_article_analysis(analysis_dict)
             print("Analysis sent successfully.")
         else:

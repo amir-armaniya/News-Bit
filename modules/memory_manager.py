@@ -1,3 +1,4 @@
+# modules/memory_manager.py
 import json
 
 MEMORY_FILE = 'processed_articles.jsonl'
@@ -17,6 +18,31 @@ def load_processed_links() -> set:
     except FileNotFoundError:
         pass # The file doesn't exist yet, which is fine
     return processed_links
+
+def save_processed_links(processed_links: set):
+    """Saves the set of processed links to the memory file."""
+    try:
+        # Read existing data
+        existing_data = []
+        try:
+            with open(MEMORY_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        data = json.loads(line)
+                        if 'link' in data:
+                            existing_data.append(data)
+                    except json.JSONDecodeError:
+                        continue
+        except FileNotFoundError:
+            pass
+        
+        # Write back only the links that are in the processed_links set
+        with open(MEMORY_FILE, 'w', encoding='utf-8') as f:
+            for data in existing_data:
+                if data['link'] in processed_links:
+                    f.write(json.dumps(data, ensure_ascii=False) + '\n')
+    except Exception as e:
+        print(f"Error saving processed links to memory file: {e}")
 
 def save_analysis(analysis_dict: dict):
     """Appends a new successful analysis to the memory file."""
