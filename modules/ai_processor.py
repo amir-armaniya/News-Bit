@@ -20,10 +20,13 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
         pass
     
     prompt = f"""
-    User's professional interests: "{user_context}"
-    Based on the user's interests, is the following article relevant?
+    Analyze the user's professional interests: "{user_context}"
+    Now, analyze the following article:
     Title: "{article_title}"
-    Respond with only the single word 'YES' or 'NO'.
+    Summary: "{article_summary}"
+
+    Does this article discuss topics like SaaS, FinTech, AI applications, product management, team leadership, or startup funding?
+    Your answer must be only the single word 'YES' or 'NO'.
     """
     try:
         response = client.chat.completions.create(
