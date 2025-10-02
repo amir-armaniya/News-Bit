@@ -50,5 +50,9 @@ jobs:
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions-bot@github.com'
-          git add processed_articles.jsonl
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update processed articles memory" && git push)
+          if [ -f processed_articles.jsonl ]; then
+            git add processed_articles.jsonl
+            git diff --quiet && git diff --staged --quiet || (git commit -m "Update processed articles memory" && git push)
+          else
+            echo "No memory file to commit."
+          fi
