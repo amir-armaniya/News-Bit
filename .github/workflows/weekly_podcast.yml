@@ -12,6 +12,8 @@ on:
         default: ''
 
 jobs:
+permissions:
+  contents: write
   run-analysis:
     runs-on: ubuntu-latest
     steps:
