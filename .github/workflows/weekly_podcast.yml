@@ -3,6 +3,7 @@ name: Strategic Analysis Assistant
 on:
   schedule:
     - cron: '0 7 * * 1'
+
   workflow_dispatch:
     inputs:
       on_demand_input:
