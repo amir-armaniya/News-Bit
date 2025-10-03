@@ -47,8 +47,8 @@ To setup this assistant, follow these steps:
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/AmirArmaniya/podcast-generator.git
-cd podcast-generator
+git clone https://github.com/AmirArmaniya/Strategic-Radar.git
+cd Strategic-Radar
 ```
 
 2. **Install dependencies:**
@@ -122,8 +122,8 @@ pip install -r requirements.txt
 1.  **کلون کردن ریپازیتوری:**
 
     ```bash
-    git clone https://github.com/AmirArmaniya/podcast-generator.git
-    cd podcast-generator
+    git clone https://github.com/AmirArmaniya/Strategic-Radar.git
+    cd Strategic-Radar
     ```
 
 2.  **نصب وابستگی‌ها:**
