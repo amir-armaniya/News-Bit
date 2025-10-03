@@ -1,22 +1,26 @@
-name: Weekly Podcast Generation
+name: Strategic Analysis Assistant
 
 on:
   schedule:
-    - cron: '0 7 * * 0'
+    - cron: '0 7 * * 1'
+
   workflow_dispatch:
+    inputs:
+      on_demand_input:
+        description: 'URL or command from Telegram bot'
+        required: false
+        default: ''
 
 jobs:
-  build-and-run:
+permissions:
+  contents: write
+  run-analysis:
     runs-on: ubuntu-latest
-    env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -24,8 +28,31 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run On-Demand Analysis
+        if: github.event.inputs.on_demand_input != ''
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ON_DEMAND_INPUT: ${{ github.event.inputs.on_demand_input }}
+        run: python on_demand_analyzer.py
 
-      - name: Run podcast generation script
+      - name: Run Scheduled Weekly Analysis
+        if: github.event.inputs.on_demand_input == ''
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
+
+      - name: Commit and push memory file
+        if: github.event.inputs.on_demand_input == ''
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions-bot@github.com'
+          if [ -f processed_articles.jsonl ]; then
+            git add processed_articles.jsonl
+            git diff --quiet && git diff --staged --quiet || (git commit -m "Update processed articles memory" && git push)
+          else
+            echo "No memory file to commit."
+          fi
