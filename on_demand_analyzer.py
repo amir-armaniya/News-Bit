@@ -40,6 +40,41 @@ async def main():
             await telegram_sender.send_text_with_buttons(intro_text, topic_buttons)
             print("Sent topic selection interface.")
         
+        # --- NEW: HANDLER FOR FINISHING TOPIC SELECTION ---
+        elif callback_data == 'topics_done':
+            print("User finished topic selection. Displaying feed management.")
+            
+            # 1. Read feeds from config
+            try:
+                with open('config.json', 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                feeds = config.get('rss_feeds', [])
+                
+                if not feeds:
+                    await telegram_sender.send_text_to_telegram("لیست منابع خبری پیش‌فرض یافت نشد.")
+                    return
+
+                # 2. Format the list
+                feed_list_text = "این لیست پیش‌فرض منابع شماست:\n\n"
+                for i, feed in enumerate(feeds, 1):
+                    feed_list_text += f"{i}. {feed.get('name', 'Unnamed Feed')}\n"
+                
+                # 3. Send the list
+                await telegram_sender.send_text_to_telegram(feed_list_text)
+
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Error reading config.json: {e}")
+                await telegram_sender.send_text_to_telegram("خطا در خواندن لیست منابع خبری.")
+                return
+
+            # 4. Send the action buttons
+            action_text = "حالا نوبت فیدهای خبری است. آیا می‌خواهید فیدی اضافه یا حذف کنید؟"
+            action_buttons = [
+                [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
+                [("نه، عالی است", "feeds_done")]
+            ]
+            await telegram_sender.send_text_with_buttons(action_text, action_buttons)
+
         # Add other callback handlers here in the future...
 
     elif input_type == 'message':
