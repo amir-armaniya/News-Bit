@@ -3,6 +3,7 @@ import os
 import asyncio
 import json
 import random
+import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 from modules.content_collector import fetch_recent_articles
 
@@ -74,6 +75,12 @@ async def main():
                 [("نه، عالی است", "feeds_done")]
             ]
             await telegram_sender.send_text_with_buttons(action_text, action_buttons)
+
+        # --- NEW: HANDLER FOR ADD FEED CALLBACK ---
+        elif callback_data == 'add_feed':
+            prompt_message = "لطفاً لینک فید مورد نظر خود را برای من ارسال کنید."
+            await telegram_sender.send_text_to_telegram(prompt_message)
+            print("Prompted user to send a feed URL.")
 
         # Add other callback handlers here in the future...
 
@@ -173,6 +180,35 @@ async def main():
         else:
             await telegram_sender.send_text_to_telegram("پیام شما دریافت شد، اما در حال حاضر فقط می‌توانم لینک‌ها را تحلیل کنم.")
             print("Non-URL input handled.")
+
+    # --- NEW: HANDLER FOR FEED SUBMISSION ---
+    elif input_type == 'feed_submission':
+        submitted_url = user_data.get('url', '')
+        print(f"Received feed submission for URL: {submitted_url}")
+
+        if not submitted_url:
+            await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد.")
+            return
+
+        try:
+            feed = feedparser.parse(submitted_url)
+            # A valid feed should not be a "bozo" and should have entries.
+            if not feed.bozo and feed.entries:
+                feed_title = feed.feed.get('title', 'بدون عنوان')
+                confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
+                confirmation_buttons = [
+                    [
+                        ("بله، اضافه کن", f"confirm_add:{submitted_url}"),
+                        ("خیر، لغو", "cancel_add")
+                    ]
+                ]
+                await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
+            else:
+                error_message = "لینک RSS ارسالی معتبر به نظر نمی‌رسد. لطفاً دوباره تلاش کنید."
+                await telegram_sender.send_text_to_telegram(error_message)
+        except Exception as e:
+            print(f"Error parsing feed: {e}")
+            await telegram_sender.send_text_to_telegram("خطایی در پردازش لینک فید رخ داد.")
 
     else:
         print(f"Unknown input type: {input_type}")
