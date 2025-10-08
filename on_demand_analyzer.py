@@ -12,6 +12,13 @@ async def main():
 
     print(f"Received on-demand input: {user_input}")
 
+    # --- NEW LOGIC FOR /start COMMAND ---
+    if user_input.lower() == '/start':
+        initial_message = "رباتی که اخبار هفتگی مورد نیاز شما را تجزیه و تحلیل، ترجمه و ارائه می‌دهد."
+        await telegram_sender.send_text_to_telegram(initial_message)
+        print("Sent initial value proposition for /start command.")
+        return # Important: Stop further execution
+
     # --- Simple Command Handling ---
     if user_input.lower().startswith('/add_source'):
         await telegram_sender.send_text_to_telegram("Functionality to add sources is not yet implemented.")
