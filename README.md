@@ -1,118 +1,126 @@
-#English:
+البته. با توجه به تمام قابلیت‌های تعاملی و شخصی‌سازی که اضافه کردیم، زمان آن رسیده که فایل `README.md` را به‌روز کنیم تا نمایانگر قدرت واقعی پروژه باشد.
 
-# Strategic Analysis Assistant
+در ادامه، نسخه جدید و بهبودیافته `README.md` ارائه می‌شود.
 
-This project is an intelligent and automated pipeline for collecting, filtering, analyzing, and presenting news and articles from various web sources. The system is designed to act as a personal assistant for a startup founder or product manager, providing strategic and personalized analysis via a Telegram bot.
+-----
 
-This project is completely free and runs on **GitHub Actions** and free AI APIs (via **OpenRouter**).
+# English:
+
+# Strategic Radar Assistant
+
+This project is an intelligent and automated pipeline for collecting, filtering, analyzing, and presenting news and articles. The system is designed to act as a personal strategic assistant for a startup founder or product manager, providing tailored analysis via a fully interactive Telegram bot.
+
+This project runs for free on **GitHub Actions**, with **Cloudflare Workers** as the interactive bridge and **OpenRouter** for AI APIs.
 
 ## 🚀 Key Features
 
 This intelligent assistant provides a set of powerful features to optimize the process of receiving and analyzing information:
 
-* **Dual-Mode Operation:**
+  * **Interactive & Personalized Experience:**
 
-* **Scheduled Analysis:** Automatically and weekly collects and analyzes new news from defined RSS sources.
-* **On-Demand Analysis:** Instant analysis of any link or article sent to the Telegram bot.
+      * **Guided Onboarding:** The bot actively guides new users through a setup process, demonstrating its value and capabilities from the first interaction.
+      * **Topic Selection:** Users can choose their specific areas of interest (e.g., AI, FinTech, Product Management) to receive more relevant analyses.
+      * **Dynamic Feed Management:** Users can add their own custom RSS feeds or remove default ones directly through the bot's interactive interface.
 
-* **AI Core:**
+  * **Dual-Mode Operation:**
 
-* **Smart Filter:** Before any in-depth analysis, it uses a fast and low-cost AI model to select articles based on their relevance to the user's goals (defined in `context.txt`) to avoid clutter and irrelevant information.
-* **Deep Strategic Analysis:** Using a powerful AI model and the "Chain of Thought" technique, it provides multi-part analyses that include **Summary**, **Opposite Viewpoint**, **Practical Application for the User**, and **Glossary of Key Terms**.
+      * **Scheduled Analysis:** Automatically and weekly, it collects and analyzes new articles from the user's customized list of RSS sources.
+      * **On-Demand Analysis:** Provides instant analysis of any link sent to the Telegram bot.
 
-* **Multi-purpose Data Collection:**
+  * **AI Core:**
 
-* **RSS Reader:** Collects new articles from the list of RSS sources defined in `config.json`.
-* **Web Scraper:** It has the ability to extract text content from any website link (even websites without RSS).
+      * **Smart Filter:** Before any in-depth analysis, it uses a fast, low-cost AI model to select articles based on their relevance to the user's goals (defined in `context.txt`).
+      * **Deep Strategic Analysis:** Using a powerful AI model, it provides multi-part analyses that include **Summary**, **Contrarian Viewpoint**, **Practical Application for the User**, and a **Glossary of Key Terms**.
 
-* **Long-term memory (Persistence):**
+  * **Multi-purpose Data Collection:**
 
-* The system is equipped with a persistent memory (`processed_articles.jsonl`) that stores the link of all analyzed articles. This feature ensures that you will never be sent a duplicate news item, and the memory is automatically updated in the GitHub repository after each successful execution.
+      * **RSS Reader:** Collects new articles from the list of default and user-added RSS sources.
+      * **Web Scraper:** Can extract text content from any website link (even those without an RSS feed).
 
-## ⚙️ Architecture and how it works
+  * **Long-Term Memory (Persistence):**
 
-The system uses a modular and interactive architecture:
+      * The system uses a persistent memory (`processed_articles.jsonl`) that stores the link of every analyzed article. This ensures that no duplicate news is ever sent.
 
-1. **User input (for request analysis):** The user sends a link to the Telegram bot.
-2. **Cloudflare Worker:** An always-on serverless function receives the message, verifies the user's identity, and instructs GitHub Actions to start an "on-demand" operation.
-3. **GitHub Actions:**
-* **On-demand execution:** The GitHub workflow executes the `on_demand_analyzer.py` script upon receiving the command. This script scrapes the link, analyzes its content, and sends the result to Telegram.
-* **Scheduled execution:** Weekly, the workflow executes the `main.py` script, which is responsible for collecting, filtering, and analyzing news from RSS sources.
-4. **Output:** All analysis is sent to the user as a text message with professional Markdown formatting in Telegram.
+## ⚙️ Architecture and How It Works
+
+The system uses a modular and stateful architecture to provide an interactive experience:
+
+1.  **User Input:** The user interacts with the bot by sending a command (`/start`), clicking a button, or sending a link.
+2.  **Cloudflare Worker (The Bridge & Memory):** An always-on serverless function acts as the main gateway. It receives messages, manages user state and preferences (like selected topics and custom feeds) using a KV store, and intelligently triggers the correct GitHub Actions workflow.
+3.  **GitHub Actions (The Brain):**
+      * **Interactive Execution (`on_demand_analyzer.py`):** This script handles the entire interactive user journey, including the onboarding flow, customization menus, and on-demand analysis of links.
+      * **Scheduled Execution (`main.py`):** Weekly, the workflow executes this script, which is responsible for collecting, filtering, and analyzing news from the user's personalized sources.
+4.  **Output:** All analyses are sent to the user as professionally formatted Markdown messages in Telegram.
 
 ## 🛠️ Setup and Configuration
 
-To setup this assistant, follow these steps:
+To set up this assistant, follow these steps:
 
-1. **Clone the repository:**
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/AmirArmaniya/Strategic-Radar.git
+    cd Strategic-Radar
+    ```
+2.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Configure environment variables:**
+      * Create a `.env` file and add your `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`.
+4.  **Customization:**
+      * **`config.json`:** Edit the initial list of default RSS sources.
+      * **`context.txt`:** This is the most important file for personalization. Write your goals, interests, and professional context here to tailor the AI analysis.
+5.  **GitHub and Cloudflare Settings:**
+      * For full activation, create a **Cloudflare Worker** with a **KV Namespace Binding**, and set up the required **Secrets** in your GitHub repository.
 
-```bash
-git clone https://github.com/AmirArmaniya/Strategic-Radar.git
-cd Strategic-Radar
-```
+-----
 
-2. **Install dependencies:**
+# Persian:
 
-```bash
-pip install -r requirements.txt
-```
+# دستیار رادار استراتژیک (Strategic Radar Assistant)
 
-3. **Configure environment variables:**
+این پروژه یک پایپ‌لاین (pipeline) هوشمند و خودکار برای جمع‌آوری، فیلتر، تحلیل و ارائه اخبار و مقالات است. سیستم به گونه‌ای طراحی شده که به عنوان یک دستیار استراتژیک شخصی برای یک بنیان‌گذار استارتاپ یا مدیر محصول عمل کند و تحلیل‌های سفارشی‌شده را از طریق یک ربات تلگرام کاملاً تعاملی ارائه دهد.
 
-* Create a `.env` file in the root of the project and put the following variables in it:
-* `OPENROUTER_API_KEY`: Your API key from the OpenRouter service.
-* `TELEGRAM_BOT_TOKEN`: Your Telegram bot token.
-* `TELEGRAM_CHAT_ID`: Your Telegram chat numeric ID (for receiving messages).
-
-4. **Customization:**
-
-* **`config.json`:** Edit the list of your desired RSS sources in this file.
-* **`context.txt`:** This is the most important file for personalization. Write your goals, interests, and work context in this file to fully optimize your AI analytics for you.
-
-5. **GitHub and Cloudflare Settings:**
-
-* For full activation (including interactivity), follow the steps to create a **Cloudflare Worker** and set up **Secrets** in your GitHub repository (including `GITHUB_TOKEN`).
-
-#Persian:
-
-# دستیار تحلیلگر استراتژیک اخبار (Strategic Analysis Assistant)
-
-این پروژه یک پایپ‌لاین (pipeline) هوشمند و خودکار برای جمع‌آوری، فیلتر، تحلیل و ارائه اخبار و مقالات از منابع مختلف وب است. سیستم به گونه‌ای طراحی شده که به عنوان یک دستیار شخصی برای یک بنیان‌گذار استارتاپ یا مدیر محصول عمل کند و تحلیل‌های استراتژیک و شخصی‌سازی شده را از طریق یک ربات تلگرام ارائه دهد.
-
-این پروژه کاملاً رایگان است و بر بستر **GitHub Actions** و APIهای رایگان هوش مصنوعی (از طریق **OpenRouter**) اجرا می‌شود.
+این پروژه به صورت رایگان بر بستر **GitHub Actions**، با استفاده از **Cloudflare Workers** به عنوان پل ارتباطی تعاملی و **OpenRouter** برای APIهای هوش مصنوعی اجرا می‌شود.
 
 ## 🚀 قابلیت‌های کلیدی
 
 این دستیار هوشمند مجموعه‌ای از قابلیت‌های قدرتمند را برای بهینه‌سازی فرآیند دریافت و تحلیل اطلاعات فراهم می‌کند:
 
+  * **تجربه تعاملی و شخصی‌سازی شده (جدید):**
+
+      * **آنبوردینگ هوشمند:** ربات به صورت فعال کاربران جدید را در یک فرآیند راه‌اندازی راهنمایی می‌کند و ارزش و قابلیت‌های خود را از همان ابتدا به نمایش می‌گذارد.
+      * **انتخاب موضوعات:** کاربران می‌توانند حوزه‌های مورد علاقه خود (مانند هوش مصنوعی، فین‌تک، مدیریت محصول) را انتخاب کنند تا تحلیل‌های مرتبط‌تری دریافت نمایند.
+      * **مدیریت پویای منابع:** کاربران می‌توانند منابع خبری RSS دلخواه خود را اضافه کرده یا منابع پیش‌فرض را مستقیماً از طریق رابط کاربری تعاملی ربات مدیریت کنند.
+
   * **اجرای دوگانه (Dual-Mode Operation):**
 
-      * **تحلیل زمان‌بندی شده:** به صورت خودکار و هفتگی، اخبار جدید را از منابع RSS تعریف شده جمع‌آوری و تحلیل می‌کند.
-      * **تحلیل درخواستی (On-Demand):** قابلیت تحلیل فوری هر لینک یا مقاله‌ای که برای ربات تلگرام ارسال می‌شود.
+      * **تحلیل زمان‌بندی شده:** به صورت خودکار و هفتگی، اخبار جدید را از لیست سفارشی‌شده منابع RSS کاربر جمع‌آوری و تحلیل می‌کند.
+      * **تحلیل درخواستی (On-Demand):** قابلیت تحلیل فوری هر لینکی که برای ربات تلگرام ارسال می‌شود.
 
   * **مغز متفکر هوشمند (AI Core):**
 
-      * **فیلتر هوشمند:** قبل از هر تحلیل عمیق، با استفاده از یک مدل هوش مصنوعی سریع و کم‌هزینه، مقالات را بر اساس ارتباط با اهداف کاربر (تعریف شده در `context.txt`) گزینش می‌کند تا از شلوغی و ارسال اطلاعات نامرتبط جلوگیری شود.
-      * **تحلیل استراتژیک عمیق:** با استفاده از یک مدل هوش مصنوعی قدرتمند و تکنیک "زنجیره افکار" (Chain of Thought)، تحلیل‌های چندبخشی ارائه می‌دهد که شامل **خلاصه جامع**، **دیدگاه مخالف**، **کاربرد عملی برای کاربر** و **واژه‌نامه اصطلاحات کلیدی** است.
+      * **فیلتر هوشمند:** قبل از هر تحلیل عمیق، با استفاده از یک مدل هوش مصنوعی سریع و کم‌هزینه، مقالات را بر اساس ارتباط با اهداف کاربر (تعریف شده در `context.txt`) گزینش می‌کند.
+      * **تحلیل استراتژیک عمیق:** با استفاده از یک مدل هوش مصنوعی قدرتمند، تحلیل‌های چندبخشی ارائه می‌دهد که شامل **خلاصه جامع**، **دیدگاه مخالف**، **کاربرد عملی برای کاربر** و **واژه‌نامه اصطلاحات کلیدی** است.
 
   * **جمع‌آوری چندمنظوره اطلاعات:**
 
-      * **خواننده RSS:** مقالات جدید را از لیست منابع RSS تعریف شده در `config.json` جمع‌آوری می‌کند.
+      * **خواننده RSS:** مقالات جدید را از لیست منابع پیش‌فرض و منابع اضافه‌شده توسط کاربر جمع‌آوری می‌کند.
       * **خزنده وب (Web Scraper):** قابلیت استخراج محتوای متنی از هر لینک وب‌سایت (حتی وب‌سایت‌های بدون RSS) را دارد.
 
   * **حافظه بلندمدت (Persistence):**
 
-      * سیستم مجهز به یک حافظه پایدار (`processed_articles.jsonl`) است که لینک تمام مقالات تحلیل شده را در خود ذخیره می‌کند. این قابلیت تضمین می‌کند که هرگز یک خبر تکراری برای شما ارسال نشود و حافظه پس از هر اجرای موفق به صورت خودکار در ریپازیتوری گیت‌هاب به‌روزرسانی می‌شود.
+      * سیستم از یک حافظه پایدار (`processed_articles.jsonl`) استفاده می‌کند که لینک تمام مقالات تحلیل شده را ذخیره می‌کند. این قابلیت تضمین می‌کند که هرگز یک خبر تکراری ارسال نشود.
 
 ## ⚙️ معماری و نحوه کار
 
-این سیستم از یک معماری ماژولار و تعاملی بهره می‌برد:
+این سیستم از یک معماری ماژولار و حالت‌مند (Stateful) برای ارائه یک تجربه تعاملی بهره می‌برد:
 
-1.  **ورودی کاربر (برای تحلیل درخواستی):** کاربر لینکی را به ربات تلگرام ارسال می‌کند.
-2.  **پل ارتباطی (Cloudflare Worker):** یک تابع سرورلس همیشه فعال، پیام را دریافت کرده، هویت کاربر را تایید می‌کند و به GitHub Actions فرمان شروع یک عملیات "درخواستی" را می‌دهد.
+1.  **ورودی کاربر:** کاربر از طریق ارسال دستور (`/start`)، کلیک روی دکمه‌ها، یا ارسال لینک با ربات تعامل می‌کند.
+2.  **پل ارتباطی و حافظه (Cloudflare Worker):** یک تابع سرورلس همیشه فعال که به عنوان دروازه اصلی عمل می‌کند. این سرویس پیام‌ها را دریافت کرده، **وضعیت و تنظیمات کاربر** (مانند موضوعات انتخابی و فیدهای شخصی) را با استفاده از **حافظه KV** مدیریت می‌کند و گردش کار مناسب را در GitHub Actions به صورت هوشمند فراخوانی می‌کند.
 3.  **مغز متفکر (GitHub Actions):**
-      * **اجرای درخواستی:** گردش کار گیت‌هاب با دریافت فرمان، اسکریپت `on_demand_analyzer.py` را اجرا می‌کند. این اسکریپت لینک را خراشیده، محتوای آن را تحلیل کرده و نتیجه را در تلگرام ارسال می‌کند.
-      * **اجرای زمان‌بندی شده:** به صورت هفتگی، گردش کار اسکریپت `main.py` را اجرا می‌کند که وظیفه جمع‌آوری، فیلتر و تحلیل اخبار از منابع RSS را بر عهده دارد.
+      * **اجرای تعاملی (`on_demand_analyzer.py`):** این اسکریپت اکنون **کل سفر تعاملی کاربر**، شامل فرآیند آنبوردینگ، منوهای شخصی‌سازی، و تحلیل درخواستی لینک‌ها را مدیریت می‌کند.
+      * **اجرای زمان‌بندی شده (`main.py`):** به صورت هفتگی، گردش کار این اسکریپت را اجرا می‌کند که وظیفه جمع‌آوری، فیلتر و تحلیل اخبار از منابع شخصی‌سازی‌شده کاربر را بر عهده دارد.
 4.  **خروجی:** تمام تحلیل‌ها به صورت یک پیام متنی با فرمت‌بندی حرفه‌ای Markdown در تلگرام برای کاربر ارسال می‌شود.
 
 ## 🛠️ راه‌اندازی و پیکربندی
@@ -120,30 +128,18 @@ pip install -r requirements.txt
 برای راه‌اندازی این دستیار، مراحل زیر را دنبال کنید:
 
 1.  **کلون کردن ریپازیتوری:**
-
     ```bash
     git clone https://github.com/AmirArmaniya/Strategic-Radar.git
     cd Strategic-Radar
     ```
-
 2.  **نصب وابستگی‌ها:**
-
     ```bash
     pip install -r requirements.txt
     ```
-
 3.  **پیکربندی متغیرهای محیطی:**
-
-      * یک فایل `.env` در ریشه پروژه بسازید و متغیرهای زیر را در آن قرار دهید:
-          * `OPENROUTER_API_KEY`: کلید API شما از سرویس OpenRouter.
-          * `TELEGRAM_BOT_TOKEN`: توکن ربات تلگرام شما.
-          * `TELEGRAM_CHAT_ID`: شناسه عددی چت تلگرام شما (برای دریافت پیام‌ها).
-
+      * یک فایل `.env` بسازید و متغیرهای `OPENROUTER_API_KEY`، `TELEGRAM_BOT_TOKEN` و `TELEGRAM_CHAT_ID` را در آن قرار دهید.
 4.  **شخصی‌سازی:**
-
-      * **`config.json`:** لیست منابع RSS مورد نظر خود را در این فایل ویرایش کنید.
+      * **`config.json`:** لیست اولیه منابع RSS پیش‌فرض را در این فایل ویرایش کنید.
       * **`context.txt`:** این مهم‌ترین فایل برای شخصی‌سازی است. اهداف، علایق و زمینه کاری خود را در این فایل بنویسید تا تحلیل‌های هوش مصنوعی کاملاً برای شما بهینه شوند.
-
 5.  **تنظیمات GitHub و Cloudflare:**
-
-      * برای فعال‌سازی کامل (شامل قابلیت تعاملی)، مراحل مربوط به ساخت **Cloudflare Worker** و تنظیم **Secrets** در ریپازیتوری گیت‌هاب (شامل `GITHUB_TOKEN`) را دنبال کنید.
+      * برای فعال‌سازی کامل، یک **Cloudflare Worker** به همراه یک **KV Namespace Binding** بسازید و **Secrets** مورد نیاز را در ریپازیتوری گیت‌هاب خود تنظیم کنید.
