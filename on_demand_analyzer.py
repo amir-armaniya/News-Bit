@@ -47,7 +47,12 @@ async def main():
                 remove_buttons.append([("لغو و بازگشت", "display_feeds")])
                 await telegram_sender.send_text_with_buttons("کدام منبع شخصی را می‌خواهید حذف کنید؟", remove_buttons)
 
-        elif callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done', 'feeds_done']:
+        elif callback_data == 'feeds_done':
+            confirmation_message = "اطلاعات شما دریافت شد، خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود."
+            await telegram_sender.send_text_to_telegram(confirmation_message)
+            print("Sent final customization confirmation message.")
+
+        elif callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done']:
             print("Displaying dynamic feed management screen.")
             custom_feed_urls = user_data.get('custom_feeds', [])
             all_feeds = []
