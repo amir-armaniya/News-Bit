@@ -1,8 +1,8 @@
 import os
-from telegram import Bot
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
-async def send_article_analysis(analysis_dict: dict) -> bool:
+async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bool:
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
@@ -50,11 +50,25 @@ async def send_article_analysis(analysis_dict: dict) -> bool:
 
 [لینک منبع]({link})"""
     
+    # --- NEW LOGIC FOR BUTTONS ---
+    reply_markup = None
+    if buttons:
+        keyboard = [
+            [InlineKeyboardButton(text, callback_data=data) for text, data in row]
+            for row in buttons
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    
     bot = Bot(token=token)
     
     async with bot:
         try:
-            await bot.send_message(chat_id=chat_id, text=message, parse_mode='MarkdownV2')
+            await bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode='MarkdownV2',
+                reply_markup=reply_markup
+            )
             print("Article analysis sent to Telegram successfully.")
             return True
         except TelegramError as e:

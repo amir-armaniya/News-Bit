@@ -2,7 +2,9 @@
 import os
 import asyncio
 import json
+import random
 from modules import ai_processor, telegram_sender, web_scraper
+from modules.content_collector import fetch_recent_articles
 
 async def main():
     raw_input = os.getenv('ON_DEMAND_INPUT', '{}').strip()
@@ -33,7 +35,46 @@ async def main():
         await telegram_sender.send_text_to_telegram(welcome_message)
 
         print("Sent initial proposition and personalized welcome for /start command.")
-        return # Important: Stop further execution
+        
+        # --- NEW: VALUE DEMONSTRATION LOGIC ---
+        print("Starting value demonstration...")
+        try:
+            # 1. Fetch recent articles
+            recent_articles = fetch_recent_articles("config.json")
+
+            if not recent_articles:
+                await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد. لطفاً کمی بعد دوباره تلاش کنید.")
+                return
+
+            # 2. Select a random article
+            sample_article = random.choice(recent_articles)
+            print(f"Selected sample article: {sample_article['title']}")
+            
+            # 3. Process the article
+            analysis_dict = ai_processor.process_article_in_persian(
+                sample_article['title'],
+                sample_article['summary'],
+                sample_article['link']
+            )
+
+            # 4. Send analysis with decision buttons
+            if analysis_dict:
+                decision_buttons = [
+                    [
+                        ("عالی، هر هفته برای من ارسال کنید", "activate_quick"),
+                        ("عالیه، بریم و منابع رو مشخص کنیم", "activate_custom")
+                    ]
+                ]
+                await telegram_sender.send_article_analysis(analysis_dict, buttons=decision_buttons)
+                print("Successfully sent sample analysis with decision buttons.")
+            else:
+                await telegram_sender.send_text_to_telegram("خطایی در تحلیل مقاله نمونه رخ داد. لطفاً بعداً تلاش کنید.")
+
+        except Exception as e:
+            print(f"An error occurred during value demonstration: {e}")
+            await telegram_sender.send_text_to_telegram("یک خطای غیرمنتظره در آماده‌سازی نمونه رخ داد.")
+        
+        return # Stop execution after /start flow
 
     # --- Existing Command Handling (ensure it uses user_text) ---
     if user_text.lower().startswith('/add_source'):
