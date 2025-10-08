@@ -26,6 +26,20 @@ async def main():
             await telegram_sender.send_text_to_telegram(confirmation_message)
             print("Sent quick activation confirmation.")
         
+        # --- NEW: HANDLER FOR CUSTOMIZATION PATH ---
+        elif callback_data == 'activate_custom':
+            intro_text = "بسیار خب. بیایید دستیار را برای شما شخصی‌سازی کنیم. اولویت‌های اصلی شما چیست؟ (می‌توانید تا سه مورد همزمان را انتخاب کنید)"
+            
+            topic_buttons = [
+                [("هوش مصنوعی", "topic_ai"), ("فناوری مالی", "topic_fintech")],
+                [("مدیریت محصول", "topic_pm"), ("جمع‌آوری کمک‌های مالی", "topic_funding")],
+                [("تیم‌سازی", "topic_team")],
+                [("تمام شد، بیایید به فیدها برویم", "topics_done")]
+            ]
+
+            await telegram_sender.send_text_with_buttons(intro_text, topic_buttons)
+            print("Sent topic selection interface.")
+        
         # Add other callback handlers here in the future...
 
     elif input_type == 'message':
