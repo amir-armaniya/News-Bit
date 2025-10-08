@@ -41,35 +41,64 @@ async def main():
             await telegram_sender.send_text_with_buttons(intro_text, topic_buttons)
             print("Sent topic selection interface.")
         
-        # --- NEW: HANDLER FOR FINISHING TOPIC SELECTION ---
-        elif callback_data == 'topics_done':
-            print("User finished topic selection. Displaying feed management.")
+        # --- NEW: DEDICATED HANDLER FOR REMOVE FEED UI ---
+        elif callback_data == 'remove_feed':
+            print("Displaying remove feed interface.")
+            custom_feeds = user_data.get('custom_feeds', [])
+
+            if not custom_feeds:
+                await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
+            else:
+                remove_buttons = []
+                for url in custom_feeds:
+                    # Each feed gets its own row for clarity
+                    remove_buttons.append([(url, f"remove_url:{url}")])
+                
+                # Add a final cancel button
+                remove_buttons.append([("لغو و بازگشت", "display_feeds")])
+
+                await telegram_sender.send_text_with_buttons(
+                    "کدام منبع شخصی را می‌خواهید حذف کنید؟",
+                    remove_buttons
+                )
+
+        # --- RENAMED AND MODIFIED: HANDLER FOR DISPLAYING FEEDS ---
+        elif callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done', 'feeds_done']:
+            print("Displaying dynamic feed management screen.")
             
-            # 1. Read feeds from config
+            # 1. Get custom feeds from payload
+            custom_feed_urls = user_data.get('custom_feeds', [])
+            
+            # 2. Read default feeds from config
+            all_feeds = []
             try:
                 with open('config.json', 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                feeds = config.get('rss_feeds', [])
-                
-                if not feeds:
-                    await telegram_sender.send_text_to_telegram("لیست منابع خبری پیش‌فرض یافت نشد.")
-                    return
+                # Add default feeds as dictionaries
+                all_feeds.extend(config.get('rss_feeds', []))
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Could not read or parse config.json: {e}")
+                # Continue with custom feeds even if default fails
 
-                # 2. Format the list
-                feed_list_text = "این لیست پیش‌فرض منابع شماست:\n\n"
-                for i, feed in enumerate(feeds, 1):
+            # 3. Merge and De-duplicate
+            # Create a set of existing URLs to prevent duplicates
+            existing_urls = {feed.get('url') for feed in all_feeds if 'url' in feed}
+            for url in custom_feed_urls:
+                if url not in existing_urls:
+                    all_feeds.append({'name': url, 'url': url}) # Add custom feed as a dictionary
+                    existing_urls.add(url)
+
+            # 4. Format and Send the list
+            if not all_feeds:
+                await telegram_sender.send_text_to_telegram("هیچ منبع خبری برای نمایش وجود ندارد. یکی اضافه کنید!")
+            else:
+                feed_list_text = "این لیست منابع شماست:\n\n"
+                for i, feed in enumerate(all_feeds, 1):
                     feed_list_text += f"{i}. {feed.get('name', 'Unnamed Feed')}\n"
-                
-                # 3. Send the list
                 await telegram_sender.send_text_to_telegram(feed_list_text)
 
-            except (FileNotFoundError, json.JSONDecodeError) as e:
-                print(f"Error reading config.json: {e}")
-                await telegram_sender.send_text_to_telegram("خطا در خواندن لیست منابع خبری.")
-                return
-
-            # 4. Send the action buttons
-            action_text = "حالا نوبت فیدهای خبری است. آیا می‌خواهید فیدی اضافه یا حذف کنید؟"
+            # 5. Send action buttons
+            action_text = "آیا می‌خواهید فیدی اضافه یا حذف کنید؟"
             action_buttons = [
                 [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
                 [("نه، عالی است", "feeds_done")]
