@@ -1,8 +1,11 @@
+// cloudflare-worker/index.js
 // =================================================================
 // Helper Functions
 // =================================================================
 
-/** @typedef {{status?: string, selected_topics?: string[], custom_feeds?: string[]}} UserState */
+/** @typedef {{status?: string, selected_topics?: string[], user_feeds?: Array<{name: string, url: string}>}} UserState */
+
+
 
 /** Fetches a user's state from the KV store. */
 async function getUserState(env, chatId) {
@@ -80,7 +83,11 @@ async function handleRequest(request, env) {
         const userState = await getUserState(env, chatId);
 
         if (userState.status === 'awaiting_feed_url') {
-            payload = { type: 'feed_submission', url: message.text || '' };
+            payload = {
+                type: 'feed_submission',
+                url: message.text || '',
+                user_feeds: userState.user_feeds || []
+            };
             userState.status = 'active';
             await saveUserState(env, chatId, userState);
         } else {
@@ -112,27 +119,64 @@ async function handleRequest(request, env) {
             // All other callbacks trigger a GitHub Action
             if (callbackData.startsWith('remove_url:')) {
                 const urlToRemove = callbackData.substring('remove_url:'.length);
-                if (userState.custom_feeds) userState.custom_feeds = userState.custom_feeds.filter(url => url !== urlToRemove);
+                if (userState.user_feeds) userState.user_feeds = userState.user_feeds.filter(feed => feed.url !== urlToRemove);
                 await saveUserState(env, chatId, userState);
-                payload = { type: 'callback', data: 'display_feeds', custom_feeds: userState.custom_feeds || [] };
+                payload = {
+                    type: 'callback',
+                    data: 'display_feeds',
+                    user_feeds: userState.user_feeds || []
+                };
             } else if (callbackData.startsWith('remove_execute:')) {
                 const urlToRemove = callbackData.substring('remove_execute:'.length);
-                if (userState.custom_feeds) userState.custom_feeds = userState.custom_feeds.filter(url => url !== urlToRemove);
+                if (userState.user_feeds) userState.user_feeds = userState.user_feeds.filter(feed => feed.url !== urlToRemove);
                 await saveUserState(env, chatId, userState);
                 await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "The source has been successfully deleted.");
-                payload = { type: 'callback', data: 'display_feeds', custom_feeds: userState.custom_feeds || [] };
+                payload = {
+                    type: 'callback',
+                    data: 'display_feeds',
+                    user_feeds: userState.user_feeds || []
+                };
             } else if (callbackData.startsWith('confirm_add:')) {
-                const urlToAdd = callbackData.split(':')[1];
-                if (!userState.custom_feeds) userState.custom_feeds = [];
-                if (!userState.custom_feeds.includes(urlToAdd)) userState.custom_feeds.push(urlToAdd);
+                const feedData = JSON.parse(callbackData.split(':')[1]);
+                // Validate feed structure
+                if (feedData.name && feedData.url) {
+                    if (!userState.user_feeds.some(feed => feed.url === feedData.url)) {
+                        userState.user_feeds.push({name: feedData.name, url: feedData.url});
+                    }
+                } else {
+                    console.error('Invalid feed data structure:', feedData);
+                }
                 await saveUserState(env, chatId, userState);
-                payload = { type: 'callback', data: 'display_feeds', custom_feeds: userState.custom_feeds };
+                payload = {
+                    type: 'callback',
+                    data: 'display_feeds',
+                    user_feeds: userState.user_feeds || []
+                };
             } else if (callbackData === 'add_feed') {
                 userState.status = 'awaiting_feed_url';
                 await saveUserState(env, chatId, userState);
-                payload = { type: 'callback', data: 'add_feed' };
+                payload = {
+                    type: 'callback',
+                    data: 'add_feed',
+                    user_feeds: userState.user_feeds || []
+                };
             } else if (['topics_done', 'cancel_add', 'remove_feed', 'feeds_done'].includes(callbackData)) {
-                payload = { type: 'callback', data: callbackData, custom_feeds: userState.custom_feeds || [] };
+                // Initialize user_feeds with defaults when first entering feed management
+                if (callbackData === 'topics_done' && !userState.user_feeds) {
+                    try {
+                        // Parse default feeds from environment variable
+                        userState.user_feeds = JSON.parse(env.DEFAULT_FEEDS_JSON || '[]');
+                    } catch (e) {
+                        console.error("Failed to parse DEFAULT_FEEDS_JSON:", e);
+                        userState.user_feeds = [];
+                    }
+                    await saveUserState(env, chatId, userState);
+                }
+                payload = {
+                    type: 'callback',
+                    data: callbackData,
+                    user_feeds: userState.user_feeds || []
+                };
             } else {
                 payload = { type: 'callback', data: callbackData };
             }

@@ -7,6 +7,37 @@ import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 from modules.content_collector import fetch_recent_articles
 
+async def handle_display_feeds(user_data: dict):
+    """Display user's feeds with management options"""
+    user_feeds = user_data.get('user_feeds', [])
+    
+    # Validate feed objects
+    valid_feeds = []
+    for feed in user_feeds:
+        if isinstance(feed, dict) and feed.get('url'):
+            valid_feeds.append(feed)
+    
+    if not valid_feeds:
+        await telegram_sender.send_text_to_telegram("هنوز هیچ فیدی اضافه نکرده‌اید.")
+        return
+    
+    # Format feed list
+    feed_list = "\n".join(
+        f"{i}. {feed.get('name', feed['url'])}"
+        for i, feed in enumerate(valid_feeds, 1)
+    )
+    await telegram_sender.send_text_to_telegram(f"فیدهای فعلی:\n{feed_list}")
+    
+    # Create action buttons
+    markup = [
+        [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
+        [("نه، عالی است", "feeds_done")]
+    ]
+    await telegram_sender.send_text_with_buttons(
+        "آیا می‌خواهید فیدی اضافه یا حذف کنید؟",
+        markup
+    )
+
 async def main():
     raw_input = os.getenv('ON_DEMAND_INPUT', '{}').strip()
     try:
@@ -37,17 +68,29 @@ async def main():
             await telegram_sender.send_text_with_buttons(intro_text, topic_buttons)
             print("Sent topic selection interface.")
         
+        elif callback_data == 'topics_done':
+            user_feeds = user_data.get('user_feeds', [])
+            
+            payload = {
+                'type': 'callback',
+                'data': 'topics_done',
+                'user_feeds': user_feeds
+            }
+            # In a real implementation, we would send this payload to the next processing stage
+            print(f"Prepared topics_done payload with user feeds: {payload}")
+            await telegram_sender.send_text_to_telegram("اولویت‌های شما ثبت شد. حالا منابع خبری پیش‌فرض را بررسی می‌کنیم.")
+            await handle_display_feeds(user_data)
+        
         elif callback_data == 'remove_feed':
             print("Displaying remove feed interface.")
-            custom_feed_urls = user_data.get('custom_feeds', [])
-            if not custom_feed_urls:
+            user_feeds = user_data.get('user_feeds', [])
+            if not user_feeds:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                # Create feed objects with URL as name for display
-                custom_feeds = [{'name': url, 'url': url} for url in custom_feed_urls]
+                # Create remove buttons for each user feed
                 remove_buttons = [
-                    [("❌ " + feed['name'], f"remove_confirm:{feed['url']}")]
-                    for feed in custom_feeds
+                    [("❌ " + feed.get('name', feed['url']), f"remove_confirm:{feed['url']}")]
+                    for feed in user_feeds
                 ]
                 remove_buttons.append([("لغو و بازگشت", "display_feeds")])
                 await telegram_sender.send_text_with_buttons(
@@ -59,17 +102,7 @@ async def main():
             url = callback_data.split(':', 1)[1]
             print(f"Received removal confirmation request for URL: {url}")
             
-            # Try to find feed name from config or custom feeds
-            feed_name = url  # Default to URL if name not found
-            try:
-                with open('config.json', 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                for feed in config.get('rss_feeds', []):
-                    if feed.get('url') == url:
-                        feed_name = feed.get('name', url)
-                        break
-            except Exception as e:
-                print(f"Error reading config.json: {e}")
+            feed_name = url  # Use URL directly since we don't have config names
             
             confirmation_text = f"آیا مطمئنید که می‌خواهید منبع '{feed_name}' را حذف کنید؟"
             confirmation_buttons = [
@@ -82,35 +115,38 @@ async def main():
             await telegram_sender.send_text_to_telegram(confirmation_message)
             print("Sent final customization confirmation message.")
 
-        elif callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done']:
-            print("Displaying dynamic feed management screen.")
-            custom_feed_urls = user_data.get('custom_feeds', [])
-            all_feeds = []
-            try:
-                with open('config.json', 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                all_feeds.extend(config.get('rss_feeds', []))
-            except (FileNotFoundError, json.JSONDecodeError) as e:
-                print(f"Could not read or parse config.json: {e}")
+        if callback_data in ['topics_done', 'display_feeds', 'cancel_add', 'feeds_done'] \
+           or callback_data.startswith(('remove_execute:', 'confirm_add:')):
+            await handle_display_feeds(user_data)
 
-            existing_urls = {feed.get('url') for feed in all_feeds if 'url' in feed}
-            for url in custom_feed_urls:
-                if url not in existing_urls:
-                    all_feeds.append({'name': url, 'url': url})
-                    existing_urls.add(url)
-
-            if not all_feeds:
-                await telegram_sender.send_text_to_telegram("هیچ منبع خبری برای نمایش وجود ندارد. یکی اضافه کنید!")
+        elif callback_data == 'remove_feed':
+            print("Displaying remove feed interface.")
+            user_feeds = user_data.get('user_feeds', [])
+            if not user_feeds:
+                await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                feed_list_text = "این لیست منابع شماست:\n\n" + "\n".join(f"{i}. {feed.get('name', 'Unnamed Feed')}" for i, feed in enumerate(all_feeds, 1))
-                await telegram_sender.send_text_to_telegram(feed_list_text)
+                # Create remove buttons for each user feed
+                remove_buttons = [
+                    [("❌ " + feed.get('name', feed['url']), f"remove_confirm:{feed['url']}")]
+                    for feed in user_feeds
+                ]
+                remove_buttons.append([("لغو و بازگشت", "display_feeds")])
+                await telegram_sender.send_text_with_buttons(
+                    "کدام منبع شخصی را می‌خواهید حذف کنید؟ روی منبع کلیک کنید تا انتخاب شود.",
+                    remove_buttons
+                )
 
-            action_text = "آیا می‌خواهید فیدی اضافه یا حذف کنید؟"
-            action_buttons = [
-                [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
-                [("نه، عالی است", "feeds_done")]
+        elif callback_data.startswith('remove_confirm:'):
+            url = callback_data.split(':', 1)[1]
+            print(f"Received removal confirmation request for URL: {url}")
+            
+            feed_name = url  # Use URL directly since we don't have config names
+            
+            confirmation_text = f"آیا مطمئنید که می‌خواهید منبع '{feed_name}' را حذف کنید؟"
+            confirmation_buttons = [
+                [("بله، حذف کن", f"remove_execute:{url}"), ("خیر، بازگشت", "display_feeds")]
             ]
-            await telegram_sender.send_text_with_buttons(action_text, action_buttons)
+            await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
 
         elif callback_data == 'add_feed':
             prompt_message = "لطفاً لینک فید مورد نظر خود را برای من ارسال کنید."
@@ -136,7 +172,7 @@ async def main():
             # Value Demonstration
             print("Starting value demonstration...")
             try:
-                recent_articles = fetch_recent_articles("config.json")
+                recent_articles = fetch_recent_articles(user_data.get('user_feeds', []))
                 if not recent_articles:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
                     return
@@ -189,9 +225,17 @@ async def main():
             feed = feedparser.parse(submitted_url)
             if not feed.bozo and feed.entries:
                 feed_title = feed.feed.get('title', 'بدون عنوان')
+                
+                # Validate feed structure
+                if not feed_title or not submitted_url:
+                    await telegram_sender.send_text_to_telegram("ساختار فید نامعتبر است. لطفاً یک فید معتبر ارسال کنید.")
+                    return
+                    
                 confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
+                feed_data = json.dumps({"name": feed_title, "url": submitted_url})
+                callback_data = f"confirm_add:{feed_data}"
                 confirmation_buttons = [
-                    [("بله، اضافه کن", f"confirm_add:{submitted_url}"), ("خیر، لغو", "cancel_add")]
+                    [("بله، اضافه کن", callback_data), ("خیر، لغو", "display_feeds")]
                 ]
                 await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
             else:
@@ -200,6 +244,30 @@ async def main():
             print(f"Error parsing feed: {e}")
             await telegram_sender.send_text_to_telegram("خطایی در پردازش لینک فید رخ داد.")
 
+    elif input_type == 'remove_execute':
+        url_to_remove = user_data.get('url')
+        if url_to_remove:
+            user_feeds = user_data.get('user_feeds', [])
+            # Validate feed structure before processing
+            if not isinstance(user_feeds, list):
+                await telegram_sender.send_text_to_telegram("خطا در ساختار داده‌های منابع کاربر.")
+                return
+
+            # Find feed by URL
+            feed_to_remove = next((feed for feed in user_feeds if isinstance(feed, dict) and feed.get('url') == url_to_remove), None)
+            if feed_to_remove:
+                user_feeds.remove(feed_to_remove)
+                await telegram_sender.send_text_to_telegram(f"منبع '{feed_to_remove.get('name', url_to_remove)}' با موفقیت حذف شد.")
+                # Refresh feed display
+                await handle_display_feeds(user_data)
+                
+    elif input_type == 'display_feeds':
+        await handle_display_feeds(user_data)
+            else:
+                await telegram_sender.send_text_to_telegram("این منبع در لیست شما وجود ندارد.")
+        else:
+            await telegram_sender.send_text_to_telegram("هیچ لینکی برای حذف مشخص نشده است.")
+    
     else:
         print(f"Unknown or empty input type received: '{input_type}'")
 
