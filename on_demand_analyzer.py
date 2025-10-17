@@ -1,4 +1,4 @@
-# on_demand_analyzer.py (Refactored with Intelligent URL Handling)
+# on_demand_analyzer.py
 import os
 import asyncio
 import json
@@ -39,10 +39,9 @@ async def handle_feed_submission(submitted_url: str, user_data: dict):
             feed_title = feed.feed.get('title', 'فید بدون عنوان')
             confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
             
-            feed_data = json.dumps({"name": feed_title, "url": submitted_url}, ensure_ascii=False)
-            
+            # The callback_data now contains ONLY the URL, which is much shorter.
             confirmation_buttons = [
-                [("بله، اضافه کن", f"confirm_add:{feed_data}"), ("خیر، لغو", "cancel_add")]
+                [("بله، اضافه کن", f"confirm_add:{submitted_url}"), ("خیر، لغو", "cancel_add")]
             ]
             await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
             return True # Indicates the URL was handled as a feed

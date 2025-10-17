@@ -135,14 +135,23 @@ async function handleRequest(request, env) {
                 await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "منبع با موفقیت حذف شد.");
                 payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [] };
             } else if (callbackData.startsWith('confirm_add:')) {
-                const feedData = JSON.parse(callbackData.substring('confirm_add:'.length));
-                if (feedData.name && feedData.url) {
-                    if (!userState.user_feeds) userState.user_feeds = [];
-                    if (!userState.user_feeds.some(feed => feed.url === feedData.url)) {
-                        userState.user_feeds.push({name: feedData.name, url: feedData.url});
+                // Extract the URL directly from the callback_data string.
+                const urlToAdd = callbackData.substring('confirm_add:'.length);
+                
+                if (urlToAdd) {
+                    if (!userState.user_feeds) {
+                        userState.user_feeds = [];
+                    }
+                    // Avoid adding duplicates
+                    if (!userState.user_feeds.some(feed => feed.url === urlToAdd)) {
+                        // Add the new feed. For now, use the URL as a temporary name.
+                        userState.user_feeds.push({ name: urlToAdd, url: urlToAdd });
+                        console.log(`Added new feed for user ${chatId}: ${urlToAdd}`);
                     }
                 }
+                
                 await saveUserState(env, chatId, userState);
+                // Trigger the action to redisplay the updated feed list
                 payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [] };
             } else if (callbackData === 'add_feed') {
                 userState.status = 'awaiting_feed_url';
