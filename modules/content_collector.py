@@ -93,3 +93,30 @@ def fetch_recent_articles(config_path: str) -> list:
     
     print(f"\nFinished fetching. Total new articles found: {len(articles)}")
     return articles
+
+def fetch_sample_article(feeds: list) -> dict:
+    """
+    Fetches a single fresh sample article without checking memory.
+    Randomly selects 1-2 feeds from the provided list and returns one article.
+    """
+    if not feeds:
+        return None
+
+    articles = []
+    selected_feeds = random.sample(feeds, min(len(feeds), 2))
+    
+    for feed_info in selected_feeds:
+        try:
+            feed = feedparser.parse(feed_info['url'])
+            if feed.entries:
+                entry = random.choice(feed.entries)
+                articles.append({
+                    'title': entry.title,
+                    'link': entry.link,
+                    'summary': entry.summary,
+                    'source': feed_info.get('name', feed_info['url'])
+                })
+        except Exception:
+            continue
+    
+    return random.choice(articles) if articles else None
