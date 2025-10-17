@@ -98,16 +98,12 @@ async def main():
 
         # --- CORRECTED INDENTATION BLOCK FOR /start ---
         if user_text.lower() == '/start':
-            # Step 1: Send initial value proposition
-            initial_message = "رباتی که اخبار هفتگی مورد نیاز شما را تجزیه و تحلیل، ترجمه و ارائه می‌دهد."
-            await telegram_sender.send_text_to_telegram(initial_message)
-            
-            # Step 2: Send personalized welcome
+            # Send personalized welcome
             welcome_message = f"{user_first_name} عزیز، سلام! این ربات اخبار هفتگی شما را تجزیه و تحلیل و ترجمه می‌کند. برای نشان دادن نحوه کار آن، یک مقاله جدید از یک وب‌سایت نمونه برای شما ارسال خواهیم کرد."
             await telegram_sender.send_text_to_telegram(welcome_message)
-            print("Sent initial proposition and personalized welcome.")
+            print("Sent personalized welcome.")
             
-            # Step 3: Value Demonstration
+            # Value Demonstration
             print("Starting value demonstration...")
             try:
                 recent_articles = fetch_recent_articles("config.json")
