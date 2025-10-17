@@ -5,6 +5,34 @@ import random
 import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 
+# This function is now defined in modules.content_collector, but we need a local version for the sample
+def fetch_sample_articles(feeds: list) -> list:
+    """A simplified local version to fetch articles for the initial sample."""
+    articles = []
+    if not feeds:
+        # Fallback to config.json ONLY if no user_feeds are provided for the sample
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            feeds = config.get('rss_feeds', [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    for feed_info in random.sample(feeds, min(len(feeds), 3)): # Check 3 random feeds
+        try:
+            feed = feedparser.parse(feed_info['url'])
+            if feed.entries:
+                entry = random.choice(feed.entries)
+                articles.append({
+                    'title': entry.title,
+                    'link': entry.link,
+                    'summary': entry.summary,
+                    'source': feed_info.get('name', feed_info['url'])
+                })
+        except Exception:
+            continue
+    return articles
+
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
     print("handle_display_feeds triggered.")
