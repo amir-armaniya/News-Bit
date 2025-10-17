@@ -1,24 +1,73 @@
+# on_demand_analyzer.py (Corrected and Final Version)
 import os
 import asyncio
 import json
 import random
-from modules import ai_processor, telegram_sender, web_scraper
+import feedparser
+from modules import ai_processor, telegram_sender, web_scraper, memory_manager
 from modules.content_collector import fetch_sample_articles_from_feeds
 
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
+    print("handle_display_feeds triggered.")
+    user_feeds = user_data.get('user_feeds', [])
+    
+    feed_list_text = "این لیست منابع شماست:\n\n"
+    if not user_feeds:
+        feed_list_text += "لیست شما در حال حاضر خالی است."
+    else:
+        feed_list_text += "\n".join(
+            f"{i}. {feed.get('name', feed.get('url', 'فید بدون نام'))}"
+            for i, feed in enumerate(user_feeds, 1)
+        )
+    
+    await telegram_sender.send_text_to_telegram(feed_list_text)
+    
+    action_buttons = [
+        [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
+        [("نه، عالی است", "feeds_done")]
+    ]
+    await telegram_sender.send_text_with_buttons("آیا می‌خواهید فیدی اضافه یا حذف کنید؟", action_buttons)
+
+async def main():
+    raw_input = os.getenv('ON_DEMAND_INPUT', '{}').strip()
+    try:
+        user_data = json.loads(raw_input)
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON input: {raw_input}")
+        return
+
+    input_type = user_data.get('type')
+
+    # --- Message Handler ---
+    if input_type == 'message':
+        user_text = user_data.get('text', '').strip()
+        user_first_name = user_data.get('first_name', 'کاربر')
+
+        if not user_text:
+            return
+
+        print(f"Received message: {user_text}")
+
+        if user_text.lower() == '/start':
+            welcome_message = f"{user_first_name} عزیز، سلام! این ربات اخبار هفتگی شما را تجزیه و تحلیل و ترجمه می‌کند. برای نشان دادن نحوه کار آن، یک مقاله جدید از یک وب‌سایت نمونه برای شما ارسال خواهیم کرد."
             await telegram_sender.send_text_to_telegram(welcome_message)
+            
             try:
-                # Use the new, isolated function for fetching samples
-                sample_articles = fetch_sample_articles_from_feeds(user_data.get('user_feeds', []))
-                if not sample_articles:
-                    # If user has no feeds, fallback to config.json for the sample
+                # 1. Get user feeds from payload, if they exist
+                feeds_for_sample = user_data.get('user_feeds', [])
+                
+                # 2. If user has no feeds, fallback to config.json for the sample
+                if not feeds_for_sample:
                     try:
                         with open('config.json', 'r', encoding='utf-8') as f:
                             config = json.load(f)
-                        sample_articles = fetch_sample_articles_from_feeds(config.get('rss_feeds', []))
+                        feeds_for_sample = config.get('rss_feeds', [])
                     except (FileNotFoundError, json.JSONDecodeError):
-                        sample_articles = [] # Ensure it's an empty list on error
+                        feeds_for_sample = []
+
+                # 3. Use the new, isolated function for fetching samples
+                sample_articles = fetch_sample_articles_from_feeds(feeds_for_sample)
 
                 if not sample_articles:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
@@ -30,6 +79,7 @@ async def handle_display_feeds(user_data: dict):
                 )
 
                 if analysis_dict:
+                    # **CRITICAL:** Do NOT save the sample analysis to memory.
                     decision_buttons = [
                         [("عالی، هر هفته برای من ارسال کنید", "activate_quick"), ("عالیه، بریم و منابع رو مشخص کنیم", "activate_custom")]
                     ]
@@ -39,7 +89,7 @@ async def handle_display_feeds(user_data: dict):
             except Exception as e:
                 print(f"Error during value demonstration: {e}")
                 await telegram_sender.send_text_to_telegram("یک خطای غیرمنتظره در آماده‌سازی نمونه رخ داد.")
-
+        
         elif user_text.startswith(('http://', 'https://')):
             scraped_content = web_scraper.scrape_url(user_text)
             if scraped_content:
@@ -47,6 +97,8 @@ async def handle_display_feeds(user_data: dict):
                     scraped_content['title'], scraped_content['text'], user_text
                 )
                 if analysis_dict:
+                    # **NEW:** Save on-demand URL analysis to memory
+                    memory_manager.save_analysis(analysis_dict)
                     await telegram_sender.send_article_analysis(analysis_dict)
                 else:
                     await telegram_sender.send_text_to_telegram("متاسفانه در تحلیل محتوای لینک خطایی رخ داد.")
@@ -62,7 +114,7 @@ async def handle_display_feeds(user_data: dict):
 
         if callback_data == 'activate_quick':
             await telegram_sender.send_text_to_telegram("عالی! گزارش‌های شما هر جمعه ساعت ۹ صبح به وقت تهران ارسال خواهد شد.")
-
+        
         elif callback_data == 'activate_custom':
             intro_text = "بسیار خب. بیایید دستیار را برای شما شخصی‌سازی کنیم. اولویت‌های اصلی شما چیست؟ (می‌توانید تا سه مورد همزمان را انتخاب کنید)"
             topic_buttons = [
@@ -85,7 +137,7 @@ async def handle_display_feeds(user_data: dict):
             user_feeds = user_data.get('user_feeds', [])
             if not user_feeds:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع خبری برای حذف ندارید.")
-                await handle_display_feeds(user_data) # Show management options again
+                await handle_display_feeds(user_data)
             else:
                 remove_buttons = [
                     [("❌ " + feed.get('name', feed.get('url')), f"remove_confirm:{feed.get('url')}")]
@@ -105,7 +157,7 @@ async def handle_display_feeds(user_data: dict):
                 if feed.get('url') == url:
                     feed_name = feed.get('name', url)
                     break
-
+            
             confirmation_text = f"آیا مطمئنید که می‌خواهید منبع '{feed_name}' را حذف کنید؟"
             confirmation_buttons = [
                 [("بله، حذف کن", f"remove_execute:{url}"), ("خیر، بازگشت", "display_feeds")]
@@ -122,16 +174,15 @@ async def handle_display_feeds(user_data: dict):
             await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد. لطفاً دوباره تلاش کنید.")
             await handle_display_feeds(user_data)
             return
-
+        
         try:
             feed = feedparser.parse(submitted_url)
             if feed.feed and feed.feed.get('title'):
                 feed_title = feed.feed.get('title', 'فید بدون عنوان')
                 confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
-
-                # We must pass the data as a JSON string within the callback data
+                
                 feed_data = json.dumps({"name": feed_title, "url": submitted_url}, ensure_ascii=False)
-
+                
                 confirmation_buttons = [
                     [("بله، اضافه کن", f"confirm_add:{feed_data}"), ("خیر، لغو", "cancel_add")]
                 ]
@@ -143,8 +194,9 @@ async def handle_display_feeds(user_data: dict):
             print(f"Error parsing feed URL: {e}")
             await telegram_sender.send_text_to_telegram("خطایی در پردازش لینک فید شما رخ داد.")
             await handle_display_feeds(user_data)
-
+            
     else:
         print(f"Unknown or unhandled input type: '{input_type}'")
 
 if __name__ == "__main__":
+    asyncio.run(main())
