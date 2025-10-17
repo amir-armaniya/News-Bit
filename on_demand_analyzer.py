@@ -38,14 +38,13 @@ async def main():
             print("Sent topic selection interface.")
         
         elif callback_data == 'remove_feed':
-            print("Displaying remove feed interface.")
+            print("Prompting for feed removal selection.")
             custom_feeds = user_data.get('custom_feeds', [])
             if not custom_feeds:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                remove_buttons = [[(url, f"remove_url:{url}")] for url in custom_feeds]
-                remove_buttons.append([("لغو و بازگشت", "display_feeds")])
-                await telegram_sender.send_text_with_buttons("کدام منبع شخصی را می‌خواهید حذف کنید؟", remove_buttons)
+                message = "کدام منبع(ها) را می‌خواهید حذف کنید؟ لطفاً شماره آنها را ارسال کنید. می‌توانید چند شماره را در خطوط جداگانه یا با کاما جدا کنید."
+                await telegram_sender.send_text_to_telegram(message)
 
         elif callback_data == 'feeds_done':
             confirmation_message = "اطلاعات شما دریافت شد، خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود."
@@ -169,6 +168,104 @@ async def main():
         except Exception as e:
             print(f"Error parsing feed: {e}")
             await telegram_sender.send_text_to_telegram("خطایی در پردازش لینک فید رخ داد.")
+
+    elif input_type == 'feed_deletion_request':
+        print("Handling feed deletion request")
+        custom_feeds = user_data.get('custom_feeds', [])
+        all_feeds = []
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            all_feeds.extend(config.get('rss_feeds', []))
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Could not read or parse config.json: {e}")
+
+        existing_urls = {feed.get('url') for feed in all_feeds if 'url' in feed}
+        for url in custom_feeds:
+            if url not in existing_urls:
+                all_feeds.append({'name': url, 'url': url})
+                existing_urls.add(url)
+
+        if not all_feeds:
+            await telegram_sender.send_text_to_telegram("هیچ منبع خبری برای حذف وجود ندارد.")
+            return
+
+        # Get user input numbers
+        numbers_input = user_data.get('text', '').strip()
+        if not numbers_input:
+            await telegram_sender.send_text_to_telegram("شماره‌ای برای حذف دریافت نشد.")
+            return
+
+        try:
+            # Parse numbers (comma or newline separated)
+            numbers = []
+            for part in numbers_input.replace('\n', ',').split(','):
+                if part.strip():
+                    numbers.append(int(part.strip()))
+            
+            # Validate numbers (1-based index)
+            valid_numbers = [n for n in numbers if 1 <= n <= len(all_feeds)]
+            if not valid_numbers:
+                await telegram_sender.send_text_to_telegram("هیچ شماره معتبری دریافت نشد. لطفاً شماره‌ها را بین ۱ تا {} وارد کنید.".format(len(all_feeds)))
+                return
+                
+            # Convert to 0-based indices and get URLs to remove (only custom feeds)
+            urls_to_remove = set()
+            for num in valid_numbers:
+                feed = all_feeds[num-1]
+                if feed['url'] in custom_feeds:  # Only remove custom feeds
+                    urls_to_remove.add(feed['url'])
+            
+            if not urls_to_remove:
+                await telegram_sender.send_text_to_telegram("شما فقط می‌توانید منابع شخصی خود را حذف کنید.")
+                return
+
+            # Update custom_feeds list
+            new_custom_feeds = [url for url in custom_feeds if url not in urls_to_remove]
+            
+            # Update Cloudflare KV store
+            update_success = await telegram_sender.update_cloudflare_kv(user_data.get('user_id'), new_custom_feeds)
+            if not update_success:
+                await telegram_sender.send_text_to_telegram("خطایی در به‌روزرسانی منابع رخ داد.")
+                return
+
+            # Update user_data for subsequent operations
+            user_data['custom_feeds'] = new_custom_feeds
+            
+            # Show updated list
+            await telegram_sender.send_text_to_telegram("منابع با موفقیت به‌روزرسانی شدند. لیست جدید منابع:")
+            
+            # Regenerate feed list display
+            all_feeds = []
+            try:
+                with open('config.json', 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                all_feeds.extend(config.get('rss_feeds', []))
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Could not read or parse config.json: {e}")
+
+            existing_urls = {feed.get('url') for feed in all_feeds if 'url' in feed}
+            for url in new_custom_feeds:
+                if url not in existing_urls:
+                    all_feeds.append({'name': url, 'url': url})
+                    existing_urls.add(url)
+
+            feed_list_text = "\n".join(f"{i}. {feed.get('name', 'Unnamed Feed')}" for i, feed in enumerate(all_feeds, 1))
+            await telegram_sender.send_text_to_telegram(feed_list_text)
+            
+            # Re-show management buttons
+            action_text = "آیا می‌خواهید فیدی اضافه یا حذف کنید؟"
+            action_buttons = [
+                [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
+                [("نه، عالی است", "feeds_done")]
+            ]
+            await telegram_sender.send_text_with_buttons(action_text, action_buttons)
+
+        except ValueError:
+            await telegram_sender.send_text_to_telegram("فرمت شماره‌ها نامعتبر است. لطفاً فقط اعداد را وارد کنید.")
+        except Exception as e:
+            print(f"Error processing deletion request: {e}")
+            await telegram_sender.send_text_to_telegram("خطایی در پردازش درخواست حذف رخ داد.")
 
     else:
         print(f"Unknown or empty input type received: '{input_type}'")
