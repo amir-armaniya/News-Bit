@@ -5,6 +5,7 @@ import random
 import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 
+<<<<<<< HEAD
 # NEW LOGIC: Isolated function for fetching a sample article for onboarding.
 # This function DOES NOT and SHOULD NOT check or interact with processed_articles.jsonl.
 def fetch_sample_article() -> dict | None:
@@ -46,6 +47,35 @@ def fetch_sample_article() -> dict | None:
     print("Could not find any sample articles after checking feeds.")
     return None
 
+=======
+# This function is now defined in modules.content_collector, but we need a local version for the sample
+def fetch_sample_articles(feeds: list) -> list:
+    """A simplified local version to fetch articles for the initial sample."""
+    articles = []
+    if not feeds:
+        # Fallback to config.json ONLY if no user_feeds are provided for the sample
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            feeds = config.get('rss_feeds', [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    for feed_info in random.sample(feeds, min(len(feeds), 3)): # Check 3 random feeds
+        try:
+            feed = feedparser.parse(feed_info['url'])
+            if feed.entries:
+                entry = random.choice(feed.entries)
+                articles.append({
+                    'title': entry.title,
+                    'link': entry.link,
+                    'summary': entry.summary,
+                    'source': feed_info.get('name', feed_info['url'])
+                })
+        except Exception:
+            continue
+    return articles
+>>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
 
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
@@ -95,12 +125,21 @@ async def main():
             await telegram_sender.send_text_to_telegram(welcome_message)
             
             try:
+<<<<<<< HEAD
                 # NEW LOGIC: Call the new, isolated function
                 sample_article = fetch_sample_article()
                 if not sample_article:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
                     return
 
+=======
+                sample_articles = fetch_sample_articles(user_data.get('user_feeds', []))
+                if not sample_articles:
+                    await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
+                    return
+
+                sample_article = random.choice(sample_articles)
+>>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
                 analysis_dict = ai_processor.process_article_in_persian(
                     sample_article['title'], sample_article['summary'], sample_article['link']
                 )
