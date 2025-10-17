@@ -1,6 +1,7 @@
 # modules/content_collector.py
 import json
 import feedparser
+import random
 from datetime import datetime, timedelta, timezone
 import time
 from modules import memory_manager
@@ -108,7 +109,10 @@ def fetch_sample_articles_from_feeds(feeds_config: list) -> list:
     for feed_info in random.sample(feeds_config, min(len(feeds_config), 3)):
         try:
             print(f"-> Fetching sample from: {feed_info.get('name')}")
-            feed = feedparser.parse(feed_info['url'])
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            feed = feedparser.parse(feed_info['url'], request_headers=headers)
             if feed.entries:
                 # Pick a random recent entry
                 entry = random.choice(feed.entries)

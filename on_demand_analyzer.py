@@ -88,7 +88,9 @@ async def main():
                     await telegram_sender.send_text_to_telegram("خطایی در تحلیل مقاله نمونه رخ داد.")
             except Exception as e:
                 print(f"Error during value demonstration: {e}")
-                await telegram_sender.send_text_to_telegram("یک خطای غیرمنتظره در آماده‌سازی نمونه رخ داد.")
+                import traceback
+                traceback.print_exc()  # Print full traceback to logs
+                await telegram_sender.send_text_to_telegram(f"خطای دقیق در آماده‌سازی نمونه: {str(e)}")
         
         elif user_text.startswith(('http://', 'https://')):
             scraped_content = web_scraper.scrape_url(user_text)
