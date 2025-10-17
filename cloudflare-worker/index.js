@@ -83,17 +83,6 @@ async function handleRequest(request, env) {
             payload = { type: 'feed_submission', url: message.text || '' };
             userState.status = 'active';
             await saveUserState(env, chatId, userState);
-        } else if (userState.status === 'awaiting_feed_numbers_to_delete') {
-            // Parse comma/newline separated numbers
-            const numbers = message.text.split(/[\n,]/)
-                .map(n => n.trim())
-                .filter(n => n.length > 0)
-                .map(Number)
-                .filter(n => !isNaN(n));
-            
-            payload = { type: 'feed_deletion_request', numbers };
-            userState.status = 'active';
-            await saveUserState(env, chatId, userState);
         } else {
             payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'کاربر' };
             if (payload.text && payload.text.toLowerCase() !== '/start') {
@@ -136,11 +125,7 @@ async function handleRequest(request, env) {
                 userState.status = 'awaiting_feed_url';
                 await saveUserState(env, chatId, userState);
                 payload = { type: 'callback', data: 'add_feed' };
-            } else if (callbackData === 'remove_feed') {
-                userState.status = 'awaiting_feed_numbers_to_delete';
-                await saveUserState(env, chatId, userState);
-                payload = { type: 'callback', data: 'remove_feed' };
-            } else if (['topics_done', 'cancel_add', 'feeds_done'].includes(callbackData)) {
+            } else if (['topics_done', 'cancel_add', 'remove_feed', 'feeds_done'].includes(callbackData)) {
                 payload = { type: 'callback', data: callbackData, custom_feeds: userState.custom_feeds || [] };
             } else {
                 payload = { type: 'callback', data: callbackData };
