@@ -6,6 +6,7 @@ import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # NEW LOGIC: Isolated function for fetching a sample article for onboarding.
 # This function DOES NOT and SHOULD NOT check or interact with processed_articles.jsonl.
 def fetch_sample_article() -> dict | None:
@@ -48,6 +49,8 @@ def fetch_sample_article() -> dict | None:
     return None
 
 =======
+=======
+>>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
 # This function is now defined in modules.content_collector, but we need a local version for the sample
 def fetch_sample_articles(feeds: list) -> list:
     """A simplified local version to fetch articles for the initial sample."""
@@ -75,6 +78,9 @@ def fetch_sample_articles(feeds: list) -> list:
         except Exception:
             continue
     return articles
+<<<<<<< HEAD
+>>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
+=======
 >>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
 
 async def handle_display_feeds(user_data: dict):
@@ -126,12 +132,21 @@ async def main():
             
             try:
 <<<<<<< HEAD
+<<<<<<< HEAD
                 # NEW LOGIC: Call the new, isolated function
                 sample_article = fetch_sample_article()
                 if not sample_article:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
                     return
 
+=======
+                sample_articles = fetch_sample_articles(user_data.get('user_feeds', []))
+                if not sample_articles:
+                    await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
+                    return
+
+                sample_article = random.choice(sample_articles)
+>>>>>>> parent of d72799d (Add fetch_sample_article for onboarding samples)
 =======
                 sample_articles = fetch_sample_articles(user_data.get('user_feeds', []))
                 if not sample_articles:
