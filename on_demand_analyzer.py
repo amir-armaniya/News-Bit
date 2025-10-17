@@ -38,33 +38,21 @@ async def main():
             print("Sent topic selection interface.")
         
         elif callback_data == 'remove_feed':
-            print("Starting feed removal process.")
+            print("Displaying remove feed interface.")
             custom_feeds = user_data.get('custom_feeds', [])
             if not custom_feeds:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                feed_list = "\n".join(f"{i}. {url}" for i, url in enumerate(custom_feeds, 1))
-                prompt = f"منابع شخصی شما:\n{feed_list}\n\nکدام منبع را می‌خواهید حذف کنید؟ لطفاً فقط شماره آن را ارسال کنید."
-                await telegram_sender.send_text_to_telegram(prompt)
-                # Set state to await feed numbers for deletion
-                user_data['state'] = 'awaiting_feed_numbers_to_delete'
+                remove_buttons = [[(url, f"remove_url:{url}")] for url in custom_feeds]
+                remove_buttons.append([("لغو و بازگشت", "display_feeds")])
+                await telegram_sender.send_text_with_buttons("کدام منبع شخصی را می‌خواهید حذف کنید؟", remove_buttons)
 
         elif callback_data == 'feeds_done':
             confirmation_message = "اطلاعات شما دریافت شد، خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود."
             await telegram_sender.send_text_to_telegram(confirmation_message)
             print("Sent final customization confirmation message.")
 
-        elif callback_data.startswith('confirm_delete:'):
-            feed_url = callback_data.split(':', 1)[1]
-            custom_feeds = user_data.get('custom_feeds', [])
-            if feed_url in custom_feeds:
-                custom_feeds.remove(feed_url)
-                user_data['custom_feeds'] = custom_feeds
-                await telegram_sender.send_text_to_telegram(f"منبع '{feed_url}' با موفقیت حذف شد.")
-                # Fall through to display updated feeds
-                callback_data = 'display_feeds'
-            
-        if callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done']:
+        elif callback_data == 'display_feeds' or callback_data.startswith('confirm_add:') or callback_data in ['cancel_add', 'topics_done']:
             print("Displaying dynamic feed management screen.")
             custom_feed_urls = user_data.get('custom_feeds', [])
             all_feeds = []
@@ -102,32 +90,11 @@ async def main():
     elif input_type == 'message':
         user_text = user_data.get('text', '').strip()
         user_first_name = user_data.get('first_name', 'کاربر')
-        current_state = user_data.get('state', 'default')
         
         if not user_text:
             return
 
-        print(f"Received message with text: {user_text} (state: {current_state})")
-
-        # Handle state-specific processing first
-        if current_state == 'awaiting_feed_numbers_to_delete':
-            try:
-                feed_number = int(user_text)
-                custom_feeds = user_data.get('custom_feeds', [])
-                if 1 <= feed_number <= len(custom_feeds):
-                    feed_url = custom_feeds[feed_number-1]
-                    confirmation_text = f"آیا مطمئن هستید که می‌خواهید منبع '{feed_url}' را حذف کنید؟"
-                    confirmation_buttons = [
-                        [("بله حذف کن", f"confirm_delete:{feed_url}"), ("لغو", "display_feeds")]
-                    ]
-                    await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
-                    # Clear state after processing
-                    del user_data['state']
-                else:
-                    await telegram_sender.send_text_to_telegram("شماره وارد شده معتبر نیست. لطفاً شماره منبع را از لیست انتخاب کنید.")
-            except ValueError:
-                await telegram_sender.send_text_to_telegram("لطفاً فقط عدد وارد کنید. مثلاً برای حذف منبع شماره ۲، فقط عدد ۲ را ارسال کنید.")
-            return  # Exit after handling state-specific message
+        print(f"Received message with text: {user_text}")
 
         # --- CORRECTED INDENTATION BLOCK FOR /start ---
         if user_text.lower() == '/start':
