@@ -20,8 +20,18 @@ const DEFAULT_FEEDS = [
     {"name":"Product Hunt","url":"https://www.producthunt.com/feed.rss", "tags": ["pm", "growth"]}
 ];
 
-// Helper functions (getUserState, saveUserState, etc.) remain the same...
-// Omitting for brevity, they are correct in your version.
+// Helper functions (getUserState, saveUserState, triggerGitHubActions, sendTelegramMessage, answerCallbackQuery)
+// These are correct and can be included without change.
+
+async function getUserState(env, chatId) {if (!env.STRATEGIC_RADAR_USERS) {console.error("CRITICAL: KV Namespace 'STRATEGIC_RADAR_USERS' is not bound."); return {};} if (!chatId) return {}; const stateStr = await env.STRATEGIC_RADAR_USERS.get(String(chatId)); try {return stateStr ? JSON.parse(stateStr) : {};} catch (e) {console.error("Failed to parse user state:", e); return {};}}
+async function saveUserState(env, chatId, state) {if (!env.STRATEGIC_RADAR_USERS) return; if (!chatId) return; await env.STRATEGIC_RADAR_USERS.put(String(chatId), JSON.stringify(state));}
+async function triggerGitHubActions(env, payload) {const GITHUB_API_URL = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/weekly_podcast.yml/dispatches`; const response = await fetch(GITHUB_API_URL, {method: 'POST', headers: { 'Authorization': `token ${env.GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json', 'User-Agent': 'Cloudflare-Worker' }, body: JSON.stringify({ ref: 'feature/interactive-worker', inputs: { on_demand_input: JSON.stringify(payload) } })}); if (response.status !== 204) {console.error(`Failed to trigger GitHub Actions: ${response.status} ${await response.text()}`);}}
+async function sendTelegramMessage(botToken, chatId, text) {if (!chatId) return; const url = `https://api.telegram.org/bot${botToken}/sendMessage`; await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: String(chatId), text: text }) });}
+async function answerCallbackQuery(botToken, callbackQueryId, text = null, show_alert = false) {const url = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`; const payload = { callback_query_id: callbackQueryId }; if (text) {payload.text = text; payload.show_alert = show_alert;} await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });}
+
+// =================================================================
+// Main Request Handler Logic
+// =================================================================
 
 async function handleRequest(request, env) {
     if (request.method !== 'POST') {
@@ -39,13 +49,14 @@ async function handleRequest(request, env) {
     if (message) {
         chatId = message.chat.id;
         const userState = await getUserState(env, chatId);
-        // Ensure state properties exist
+        
+        // Ensure state properties exist to prevent errors
         userState.user_feeds = userState.user_feeds || [];
         userState.selected_topics = userState.selected_topics || [];
 
         if (userState.status === 'awaiting_feed_url') {
             payload = { type: 'feed_submission', url: message.text || '', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics };
-            userState.status = 'active';
+            userState.status = 'active'; // Reset status after submission
             await saveUserState(env, chatId, userState);
         } else {
             payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'کاربر', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics };
@@ -64,14 +75,16 @@ async function handleRequest(request, env) {
             const topic = callbackData.split('_')[1];
             if (!userState.selected_topics) userState.selected_topics = [];
 
+            // Toggle logic
             if (userState.selected_topics.includes(topic)) {
                 userState.selected_topics = userState.selected_topics.filter(t => t !== topic);
             } else if (userState.selected_topics.length < 3) {
                 userState.selected_topics.push(topic);
             } else {
                 await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id, "خطا: فقط می‌توانید تا ۳ موضوع انتخاب کنید.", true);
-                triggerAction = false;
+                triggerAction = false; // Do not trigger action on error
             }
+            
             await saveUserState(env, chatId, userState);
 
             if (triggerAction) {
@@ -83,7 +96,7 @@ async function handleRequest(request, env) {
                 };
             }
         } else {
-            // CRITICAL: Ensure user_feeds exists and is an array for all subsequent operations
+            // Ensure user_feeds exists and is an array for all subsequent operations
             if (!userState.user_feeds) userState.user_feeds = [];
 
             if (callbackData.startsWith('remove_execute:')) {
@@ -95,18 +108,20 @@ async function handleRequest(request, env) {
             } else if (callbackData.startsWith('confirm_add:')) {
                 const urlToAdd = callbackData.substring('confirm_add:'.length);
                 if (urlToAdd && !userState.user_feeds.some(feed => feed.url === urlToAdd)) {
-                    userState.user_feeds.push({ name: urlToAdd, url: urlToAdd, tags: ["custom"] }); // Add custom tag
+                    // Add the new feed. The Python script will provide the name. Here, we use a placeholder.
+                    userState.user_feeds.push({ name: urlToAdd, url: urlToAdd, tags: ["custom"] });
                 }
                 await saveUserState(env, chatId, userState);
                 payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
             } else if (callbackData === 'topics_done') {
+                // Initialize with defaults only if the list is empty
                 if (userState.user_feeds.length === 0) {
                     userState.user_feeds = DEFAULT_FEEDS;
                     await saveUserState(env, chatId, userState);
                 }
                 payload = { type: 'callback', data: 'topics_done', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
             } else {
-                // Generic handler for other simple callbacks
+                // Generic handler for other simple callbacks (add_feed, display_feeds, etc.)
                 payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
             }
         }
@@ -121,4 +136,14 @@ async function handleRequest(request, env) {
     
     return new Response('OK', { status: 200 });
 }
-// Default export and other helpers (omitted for brevity)
+
+export default {
+  async fetch(request, env) {
+    try {
+      return await handleRequest(request, env);
+    } catch (e) {
+      console.error('Critical error in worker:', e);
+      // Error handling logic...
+    }
+  }
+};
