@@ -135,16 +135,39 @@ async def main():
         print(f"Received callback: {callback_data}")
 
         if callback_data == 'activate_quick':
+            # Save user preferences before confirming
+            user_prefs = {
+                'selected_topics': user_data.get('selected_topics', []),
+                'user_feeds': user_data.get('user_feeds', [])
+            }
+            memory_manager.save_user_preferences(user_prefs)
             await telegram_sender.send_text_to_telegram("عالی! گزارش‌های شما هر جمعه ساعت ۹ صبح به وقت تهران ارسال خواهد شد.")
         
-        elif callback_data == 'activate_custom':
+        elif callback_data == 'display_topics' or callback_data == 'activate_custom':
             intro_text = "بسیار خب. بیایید دستیار را برای شما شخصی‌سازی کنیم. اولویت‌های اصلی شما چیست؟ (می‌توانید تا سه مورد همزمان را انتخاب کنید)"
-            topic_buttons = [
-                [("هوش مصنوعی", "topic_ai"), ("فناوری مالی", "topic_fintech")],
-                [("مدیریت محصول", "topic_pm"), ("جمع‌آوری کمک‌های مالی", "topic_funding")],
-                [("تیم‌سازی", "topic_team")],
-                [("تمام شد، بیایید به فیدها برویم", "topics_done")]
-            ]
+            
+            all_topics = {
+                "ai": "هوش مصنوعی",
+                "fintech": "فناوری مالی",
+                "pm": "مدیریت محصول",
+                "funding": "جمع‌آوری کمک‌های مالی",
+                "team": "تیم‌سازی"
+            }
+            selected_topics = user_data.get('selected_topics', [])
+            
+            topic_buttons = []
+            row = []
+            for topic_id, topic_name in all_topics.items():
+                display_name = f"✅ {topic_name}" if topic_id in selected_topics else topic_name
+                row.append((display_name, f"topic_{topic_id}"))
+                if len(row) == 2:
+                    topic_buttons.append(row)
+                    row = []
+            if row:
+                topic_buttons.append(row)
+                
+            topic_buttons.append([("تمام شد، بیایید به فیدها برویم", "topics_done")])
+            
             await telegram_sender.send_text_with_buttons(intro_text, topic_buttons)
 
         elif callback_data in ['topics_done', 'display_feeds', 'cancel_add'] or callback_data.startswith('confirm_add:'):
@@ -187,6 +210,12 @@ async def main():
             await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
 
         elif callback_data == 'feeds_done':
+            # Save user preferences before confirming
+            user_prefs = {
+                'selected_topics': user_data.get('selected_topics', []),
+                'user_feeds': user_data.get('user_feeds', [])
+            }
+            memory_manager.save_user_preferences(user_prefs)
             await telegram_sender.send_text_to_telegram("اطلاعات شما ذخیره شد. خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود.")
 
     # --- Feed Submission Handler ---

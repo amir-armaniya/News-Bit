@@ -99,11 +99,11 @@ async function handleRequest(request, env) {
         const userState = await getUserState(env, chatId);
 
         if (userState.status === 'awaiting_feed_url') {
-            payload = { type: 'feed_submission', url: message.text || '', user_feeds: userState.user_feeds || [] };
+            payload = { type: 'feed_submission', url: message.text || '', user_feeds: userState.user_feeds || [], selected_topics: userState.selected_topics || [] };
             userState.status = 'active';
             await saveUserState(env, chatId, userState);
         } else {
-            payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'کاربر' };
+            payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'کاربر', selected_topics: userState.selected_topics || [] };
             if (payload.text && payload.text.toLowerCase() !== '/start') {
                 await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "درخواست شما برای تحلیل دریافت شد...");
             }
@@ -127,13 +127,19 @@ async function handleRequest(request, env) {
                 await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id, "خطا: فقط می‌توانید تا ۳ موضوع انتخاب کنید.", true);
             }
             await saveUserState(env, chatId, userState);
+            triggerAction = true; // We now need to trigger an action
+            payload = {
+                type: 'callback',
+                data: 'display_topics', // A new data type to signify redrawing
+                selected_topics: userState.selected_topics || []
+            };
         } else {
             if (callbackData.startsWith('remove_execute:')) {
                 const urlToRemove = callbackData.substring('remove_execute:'.length);
                 if (userState.user_feeds) userState.user_feeds = userState.user_feeds.filter(feed => feed.url !== urlToRemove);
                 await saveUserState(env, chatId, userState);
                 await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "منبع با موفقیت حذف شد.");
-                payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [] };
+                payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [], selected_topics: userState.selected_topics || [] };
             } else if (callbackData.startsWith('confirm_add:')) {
                 // Extract the URL directly from the callback_data string.
                 const urlToAdd = callbackData.substring('confirm_add:'.length);
@@ -152,7 +158,7 @@ async function handleRequest(request, env) {
                 
                 await saveUserState(env, chatId, userState);
                 // Trigger the action to redisplay the updated feed list
-                payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [] };
+                payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds || [], selected_topics: userState.selected_topics || [] };
             } else if (callbackData === 'add_feed') {
                 userState.status = 'awaiting_feed_url';
                 await saveUserState(env, chatId, userState);
@@ -163,9 +169,14 @@ async function handleRequest(request, env) {
                     console.log(`Initialized user ${chatId} with ${DEFAULT_FEEDS.length} default feeds.`);
                     await saveUserState(env, chatId, userState);
                 }
-                payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds || [] };
+                payload = {
+                    type: 'callback',
+                    data: callbackData,
+                    user_feeds: userState.user_feeds || [],
+                    selected_topics: userState.selected_topics || []
+                };
             } else {
-                payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds || [] };
+                payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds || [], selected_topics: userState.selected_topics || [] };
             }
         }
     }

@@ -7,7 +7,7 @@ FAST_MODEL = "google/gemma-3-12b-it:free"
 # مدل قدرتمند برای تحلیل عمیق و استراتژیک
 POWERFUL_MODEL = "google/gemma-3-27b-it:free"
 
-def is_article_relevant(article_title: str, article_summary: str) -> bool:
+def is_article_relevant(article_title: str, article_summary: str, selected_topics: list | None = None) -> bool:
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
         print("OPENROUTER_API_KEY not found.")
@@ -20,17 +20,26 @@ def is_article_relevant(article_title: str, article_summary: str) -> bool:
     except FileNotFoundError:
         pass
     
+    # NEW DYNAMIC PROMPT LOGIC
+    if selected_topics:
+        # If specific topics are provided, focus the AI on them.
+        topic_str = ", ".join(selected_topics)
+        relevance_question = f"Is this article specifically relevant to one of these high-priority topics for the founder: {topic_str}?"
+    else:
+        # Fallback to the general context if no topics are selected.
+        relevance_question = "Is this article relevant to the founder's work in SaaS, FinTech, AI, product management, funding, or team building?"
+
     prompt = f"""
     You are an expert assistant for a tech startup founder in Iran.
-    The founder's interests are: "{user_context}"
-    
-    Analyze the following article and determine if it's relevant:
-    Title: "{article_title}"
-    Summary: "{article_summary}"
-    
-    Is this article relevant to the founder's work in SaaS, FinTech, AI, product management, funding, or team building?
-    Consider articles about market trends, new technologies, startup strategies, or case studies.
-    
+    The founder's general interests are: "{user_context}"
+
+    Analyze the following article and determine if it's relevant based on this specific question:
+    Article Title: "{article_title}"
+    Article Summary: "{article_summary}"
+
+    Question: {relevance_question}
+    Consider articles about market trends, new technologies, startup strategies, or case studies within the specified topics.
+
     Answer with only 'YES' or 'NO'.
     """
     try:

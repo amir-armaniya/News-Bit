@@ -51,3 +51,11 @@ def save_analysis(analysis_dict: dict):
             f.write(json.dumps(analysis_dict, ensure_ascii=False) + '\n')
     except Exception as e:
         print(f"Error saving analysis to memory file: {e}")
+
+def save_user_preferences(prefs: dict):
+    """Save user preferences to a JSON file for weekly processing."""
+    try:
+        with open('user_prefs.json', 'w', encoding='utf-8') as f:
+            json.dump(prefs, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving user preferences: {e}")
