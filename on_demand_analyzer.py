@@ -87,6 +87,86 @@ async def main():
             await telegram_sender.send_text_to_telegram(prompt_message)
             print("Prompted user to send a feed URL.")
 
+    elif input_type == 'feed_deletion_request':
+        print("Processing feed deletion request")
+        custom_feeds = user_data.get('custom_feeds', [])
+        if not custom_feeds:
+            await telegram_sender.send_text_to_telegram("هیچ منبع شخصی برای حذف وجود ندارد.")
+            return
+        
+        try:
+            indices_input = user_data.get('text', '').strip()
+            if not indices_input:
+                await telegram_sender.send_text_to_telegram("هیچ شماره‌ای وارد نشده است.")
+                return
+                
+            selected_indices = [int(idx.strip()) for idx in indices_input.split(',') if idx.strip().isdigit()]
+            if not selected_indices:
+                await telegram_sender.send_text_to_telegram("فرمت ورودی نامعتبر است. لطفاً اعداد را با کاما جدا کنید.")
+                return
+            
+            # Get combined feed list to validate indices
+            try:
+                with open('config.json', 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                default_feeds = config.get('rss_feeds', [])
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Could not read or parse config.json: {e}")
+                default_feeds = []
+            
+            all_feeds = default_feeds + [{'name': url, 'url': url} for url in custom_feeds]
+            max_valid_index = len(all_feeds)
+            
+            # Validate indices are within range
+            if any(idx < 1 or idx > max_valid_index for idx in selected_indices):
+                await telegram_sender.send_text_to_telegram(f"شماره‌های انتخاب شده باید بین ۱ تا {max_valid_index} باشند.")
+                return
+            
+            # Identify custom feed indices (offset by default feed count)
+            default_count = len(default_feeds)
+            custom_indices_to_delete = set()
+            for idx in selected_indices:
+                if idx > default_count:  # Only custom feeds can be deleted
+                    custom_indices_to_delete.add(idx - default_count - 1)
+            
+            # Remove selected custom feeds
+            new_custom_feeds = [
+                url for i, url in enumerate(custom_feeds)
+                if i not in custom_indices_to_delete
+            ]
+            
+            if len(new_custom_feeds) == len(custom_feeds):
+                await telegram_sender.send_text_to_telegram("هیچ منبع شخصی انتخاب نشده یا منابع انتخاب شده پیش‌فرض هستند.")
+                return
+            
+            # Update state with remaining custom feeds
+            user_data['custom_feeds'] = new_custom_feeds
+            removed_count = len(custom_feeds) - len(new_custom_feeds)
+            
+            # Show confirmation
+            confirmation_text = f"✅ {removed_count} منبع با موفقیت حذف شدند.\n\nلیست منابع به‌روزرسانی شده:"
+            await telegram_sender.send_text_to_telegram(confirmation_text)
+            
+            # Display updated list
+            updated_all_feeds = default_feeds + [{'name': url, 'url': url} for url in new_custom_feeds]
+            feed_list_text = "\n".join(
+                f"{i}. {feed.get('name', feed.get('url', 'Unnamed Feed'))} "
+                f"{'(پیش‌فرض)' if feed in default_feeds else '(شخصی)'}"
+                for i, feed in enumerate(updated_all_feeds, 1)
+            )
+            await telegram_sender.send_text_to_telegram(feed_list_text)
+            
+            # Show management buttons
+            action_buttons = [
+                [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
+                [("نه، عالی است", "feeds_done")]
+            ]
+            await telegram_sender.send_text_with_buttons("چه کاری انجام دهیم؟", action_buttons)
+            
+        except Exception as e:
+            print(f"Error processing deletion request: {e}")
+            await telegram_sender.send_text_to_telegram("خطایی در پردازش درخواست حذف رخ داد.")
+
     elif input_type == 'message':
         user_text = user_data.get('text', '').strip()
         user_first_name = user_data.get('first_name', 'کاربر')
@@ -96,7 +176,16 @@ async def main():
 
         print(f"Received message with text: {user_text}")
 
-        # --- CORRECTED INDENTATION BLOCK FOR /start ---
+        # Route feed deletion requests
+        if user_data.get('context') == 'awaiting_feed_deletion':
+            user_data['type'] = 'feed_deletion_request'
+            return await main()  # Reprocess with new type
+
+        # Set context for next input if we're in feed removal flow
+        if user_data.get('last_callback') == 'remove_feed':
+            user_data['context'] = 'awaiting_feed_deletion'
+
+        # --- /start handler ---
         if user_text.lower() == '/start':
             # Send personalized welcome
             welcome_message = f"{user_first_name} عزیز، سلام! این ربات اخبار هفتگی شما را تجزیه و تحلیل و ترجمه می‌کند. برای نشان دادن نحوه کار آن، یک مقاله جدید از یک وب‌سایت نمونه برای شما ارسال خواهیم کرد."

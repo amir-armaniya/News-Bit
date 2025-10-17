@@ -63,6 +63,23 @@ async function answerCallbackQuery(botToken, callbackQueryId, text = null, show_
 // =================================================================
 
 async function handleRequest(request, env) {
+    const url = new URL(request.url);
+    
+    // Handle feed updates endpoint
+    if (url.pathname === '/update-feeds' && request.method === 'POST') {
+        try {
+            const { chatId, custom_feeds } = await request.json();
+            if (chatId && custom_feeds) {
+                const userState = await getUserState(env, chatId);
+                userState.custom_feeds = custom_feeds;
+                await saveUserState(env, chatId, userState);
+            }
+            return new Response('OK', { status: 200 });
+        } catch (e) {
+            return new Response('Invalid request', { status: 400 });
+        }
+    }
+
     if (request.method !== 'POST') {
         return new Response('Expected POST request', { status: 405 });
     }
@@ -81,6 +98,11 @@ async function handleRequest(request, env) {
 
         if (userState.status === 'awaiting_feed_url') {
             payload = { type: 'feed_submission', url: message.text || '' };
+            userState.status = 'active';
+            await saveUserState(env, chatId, userState);
+        } else if (userState.status === 'awaiting_feed_deletion') {
+            // Process feed deletion numbers input
+            payload = { type: 'feed_deletion_request', numbers: message.text || '' };
             userState.status = 'active';
             await saveUserState(env, chatId, userState);
         } else {
@@ -125,7 +147,12 @@ async function handleRequest(request, env) {
                 userState.status = 'awaiting_feed_url';
                 await saveUserState(env, chatId, userState);
                 payload = { type: 'callback', data: 'add_feed' };
-            } else if (['topics_done', 'cancel_add', 'remove_feed', 'feeds_done'].includes(callbackData)) {
+            } else if (callbackData === 'remove_feed') {
+                // Set state to await feed numbers input
+                userState.status = 'awaiting_feed_deletion';
+                await saveUserState(env, chatId, userState);
+                payload = { type: 'callback', data: 'remove_feed_initiated' };
+            } else if (['topics_done', 'cancel_add', 'feeds_done'].includes(callbackData)) {
                 payload = { type: 'callback', data: callbackData, custom_feeds: userState.custom_feeds || [] };
             } else {
                 payload = { type: 'callback', data: callbackData };
