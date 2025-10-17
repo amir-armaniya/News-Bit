@@ -7,9 +7,7 @@ from modules.content_collector import fetch_sample_articles_from_feeds
 
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
-@@ -80,132 +53,142 @@
             await telegram_sender.send_text_to_telegram(welcome_message)
-
             try:
                 # Use the new, isolated function for fetching samples
                 sample_articles = fetch_sample_articles_from_feeds(user_data.get('user_feeds', []))
