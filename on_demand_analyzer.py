@@ -1,4 +1,4 @@
-# on_demand_analyzer.py (Corrected and Final Version)
+# on_demand_analyzer.py (Refactored with Intelligent URL Handling)
 import os
 import asyncio
 import json
@@ -29,6 +29,29 @@ async def handle_display_feeds(user_data: dict):
     ]
     await telegram_sender.send_text_with_buttons("آیا می‌خواهید فیدی اضافه یا حذف کنید؟", action_buttons)
 
+async def handle_feed_submission(submitted_url: str, user_data: dict):
+    """Handles the logic for validating and confirming a new feed URL."""
+    print(f"Handling URL as a potential feed submission: {submitted_url}")
+    try:
+        feed = feedparser.parse(submitted_url)
+        # A valid feed must have a title and at least one entry
+        if feed.feed and feed.feed.get('title') and feed.entries:
+            feed_title = feed.feed.get('title', 'فید بدون عنوان')
+            confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
+            
+            feed_data = json.dumps({"name": feed_title, "url": submitted_url}, ensure_ascii=False)
+            
+            confirmation_buttons = [
+                [("بله، اضافه کن", f"confirm_add:{feed_data}"), ("خیر، لغو", "cancel_add")]
+            ]
+            await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
+            return True # Indicates the URL was handled as a feed
+        else:
+            return False # Indicates this was not a valid feed
+    except Exception as e:
+        print(f"Error parsing feed URL during submission check: {e}")
+        return False
+
 async def main():
     raw_input = os.getenv('ON_DEMAND_INPUT', '{}').strip()
     try:
@@ -54,10 +77,7 @@ async def main():
             await telegram_sender.send_text_to_telegram(welcome_message)
             
             try:
-                # 1. Get user feeds from payload, if they exist
                 feeds_for_sample = user_data.get('user_feeds', [])
-                
-                # 2. If user has no feeds, fallback to config.json for the sample
                 if not feeds_for_sample:
                     try:
                         with open('config.json', 'r', encoding='utf-8') as f:
@@ -66,7 +86,6 @@ async def main():
                     except (FileNotFoundError, json.JSONDecodeError):
                         feeds_for_sample = []
 
-                # 3. Use the new, isolated function for fetching samples
                 sample_articles = fetch_sample_articles_from_feeds(feeds_for_sample)
 
                 if not sample_articles:
@@ -79,7 +98,6 @@ async def main():
                 )
 
                 if analysis_dict:
-                    # **CRITICAL:** Do NOT save the sample analysis to memory.
                     decision_buttons = [
                         [("عالی، هر هفته برای من ارسال کنید", "activate_quick"), ("عالیه، بریم و منابع رو مشخص کنیم", "activate_custom")]
                     ]
@@ -88,28 +106,31 @@ async def main():
                     await telegram_sender.send_text_to_telegram("خطایی در تحلیل مقاله نمونه رخ داد.")
             except Exception as e:
                 print(f"Error during value demonstration: {e}")
-                import traceback
-                traceback.print_exc()  # Print full traceback to logs
-                await telegram_sender.send_text_to_telegram(f"خطای دقیق در آماده‌سازی نمونه: {str(e)}")
+                await telegram_sender.send_text_to_telegram("یک خطای غیرمنتظره در آماده‌سازی نمونه رخ داد.")
         
         elif user_text.startswith(('http://', 'https://')):
-            scraped_content = web_scraper.scrape_url(user_text)
-            if scraped_content:
-                analysis_dict = ai_processor.process_article_in_persian(
-                    scraped_content['title'], scraped_content['text'], user_text
-                )
-                if analysis_dict:
-                    # **NEW:** Save on-demand URL analysis to memory
-                    memory_manager.save_analysis(analysis_dict)
-                    await telegram_sender.send_article_analysis(analysis_dict)
+            # **NEW INTELLIGENT LOGIC**
+            is_feed = await handle_feed_submission(user_text, user_data)
+            
+            if not is_feed:
+                # If it was not a valid feed, fall back to scraping it as a webpage
+                print("URL was not a valid feed. Falling back to web scraper.")
+                scraped_content = web_scraper.scrape_url(user_text)
+                if scraped_content:
+                    analysis_dict = ai_processor.process_article_in_persian(
+                        scraped_content['title'], scraped_content['text'], user_text
+                    )
+                    if analysis_dict:
+                        memory_manager.save_analysis(analysis_dict)
+                        await telegram_sender.send_article_analysis(analysis_dict)
+                    else:
+                        await telegram_sender.send_text_to_telegram("متاسفانه در تحلیل محتوای لینک خطایی رخ داد.")
                 else:
-                    await telegram_sender.send_text_to_telegram("متاسفانه در تحلیل محتوای لینک خطایی رخ داد.")
-            else:
-                await telegram_sender.send_text_to_telegram("متاسفانه نتوانستم محتوای لینک را استخراج کنم.")
+                    await telegram_sender.send_text_to_telegram("متاسفانه نتوانستم محتوای این لینک را استخراج کنم. ممکن است یک لینک RSS نامعتبر یا یک صفحه وب خالی باشد.")
         else:
             await telegram_sender.send_text_to_telegram("پیام شما دریافت شد، اما در حال حاضر فقط می‌توانم لینک‌ها را تحلیل کنم.")
 
-    # --- Callback Handler ---
+    # --- Callback Handler (No changes needed here) ---
     elif input_type == 'callback':
         callback_data = user_data.get('data')
         print(f"Received callback: {callback_data}")
@@ -169,33 +190,10 @@ async def main():
         elif callback_data == 'feeds_done':
             await telegram_sender.send_text_to_telegram("اطلاعات شما ذخیره شد. خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود.")
 
-    # --- Feed Submission Handler ---
+    # --- Feed Submission Handler (This block is now handled by the 'message' handler) ---
     elif input_type == 'feed_submission':
-        submitted_url = user_data.get('url', '')
-        if not submitted_url:
-            await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد. لطفاً دوباره تلاش کنید.")
-            await handle_display_feeds(user_data)
-            return
-        
-        try:
-            feed = feedparser.parse(submitted_url)
-            if feed.feed and feed.feed.get('title'):
-                feed_title = feed.feed.get('title', 'فید بدون عنوان')
-                confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
-                
-                feed_data = json.dumps({"name": feed_title, "url": submitted_url}, ensure_ascii=False)
-                
-                confirmation_buttons = [
-                    [("بله، اضافه کن", f"confirm_add:{feed_data}"), ("خیر، لغو", "cancel_add")]
-                ]
-                await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
-            else:
-                await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد یا عنوان ندارد. لطفاً لینک دیگری را امتحان کنید.")
-                await handle_display_feeds(user_data)
-        except Exception as e:
-            print(f"Error parsing feed URL: {e}")
-            await telegram_sender.send_text_to_telegram("خطایی در پردازش لینک فید شما رخ داد.")
-            await handle_display_feeds(user_data)
+        print("Note: 'feed_submission' type is deprecated and handled by 'message' type now.")
+        pass
             
     else:
         print(f"Unknown or unhandled input type: '{input_type}'")
