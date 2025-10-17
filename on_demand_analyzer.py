@@ -38,27 +38,14 @@ async def main():
             print("Sent topic selection interface.")
         
         elif callback_data == 'remove_feed':
-            print("Handling remove feed request")
+            print("Displaying remove feed interface.")
             custom_feeds = user_data.get('custom_feeds', [])
-            
             if not custom_feeds:
-                await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی‌سازی شده‌ای برای حذف ندارید.")
+                await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                # Create numbered list of feeds (1-based index)
-                feed_list = "\n".join(f"{i}. {url}" for i, url in enumerate(custom_feeds, 1))
-                message = (
-                    "کدام منبع را می‌خواهید حذف کنید؟ لطفاً فقط شماره آن را ارسال کنید.\n\n"
-                    f"{feed_list}"
-                )
-                await telegram_sender.send_text_to_telegram(message)
-                
-                # Update user state
-                state_data = {
-                    'state': 'awaiting_feed_to_remove',
-                    'custom_feeds': custom_feeds
-                }
-                # Store state in Cloudflare KV (implementation depends on your KV setup)
-                # Example: await kv_store.set(user_id, json.dumps(state_data))
+                remove_buttons = [[(url, f"remove_url:{url}")] for url in custom_feeds]
+                remove_buttons.append([("لغو و بازگشت", "display_feeds")])
+                await telegram_sender.send_text_with_buttons("کدام منبع شخصی را می‌خواهید حذف کنید؟", remove_buttons)
 
         elif callback_data == 'feeds_done':
             confirmation_message = "اطلاعات شما دریافت شد، خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود."
