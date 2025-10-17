@@ -39,13 +39,43 @@ async def main():
         
         elif callback_data == 'remove_feed':
             print("Displaying remove feed interface.")
-            custom_feeds = user_data.get('custom_feeds', [])
-            if not custom_feeds:
+            custom_feed_urls = user_data.get('custom_feeds', [])
+            if not custom_feed_urls:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع شخصی برای حذف ندارید.")
             else:
-                remove_buttons = [[(url, f"remove_url:{url}")] for url in custom_feeds]
+                # Create feed objects with URL as name for display
+                custom_feeds = [{'name': url, 'url': url} for url in custom_feed_urls]
+                remove_buttons = [
+                    [("❌ " + feed['name'], f"remove_confirm:{feed['url']}")]
+                    for feed in custom_feeds
+                ]
                 remove_buttons.append([("لغو و بازگشت", "display_feeds")])
-                await telegram_sender.send_text_with_buttons("کدام منبع شخصی را می‌خواهید حذف کنید؟", remove_buttons)
+                await telegram_sender.send_text_with_buttons(
+                    "کدام منبع شخصی را می‌خواهید حذف کنید؟ روی منبع کلیک کنید تا انتخاب شود.",
+                    remove_buttons
+                )
+
+        elif callback_data.startswith('remove_confirm:'):
+            url = callback_data.split(':', 1)[1]
+            print(f"Received removal confirmation request for URL: {url}")
+            
+            # Try to find feed name from config or custom feeds
+            feed_name = url  # Default to URL if name not found
+            try:
+                with open('config.json', 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                for feed in config.get('rss_feeds', []):
+                    if feed.get('url') == url:
+                        feed_name = feed.get('name', url)
+                        break
+            except Exception as e:
+                print(f"Error reading config.json: {e}")
+            
+            confirmation_text = f"آیا مطمئنید که می‌خواهید منبع '{feed_name}' را حذف کنید؟"
+            confirmation_buttons = [
+                [("بله، حذف کن", f"remove_execute:{url}"), ("خیر، بازگشت", "display_feeds")]
+            ]
+            await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
 
         elif callback_data == 'feeds_done':
             confirmation_message = "اطلاعات شما دریافت شد، خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود."

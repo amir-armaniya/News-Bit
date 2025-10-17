@@ -115,6 +115,12 @@ async function handleRequest(request, env) {
                 if (userState.custom_feeds) userState.custom_feeds = userState.custom_feeds.filter(url => url !== urlToRemove);
                 await saveUserState(env, chatId, userState);
                 payload = { type: 'callback', data: 'display_feeds', custom_feeds: userState.custom_feeds || [] };
+            } else if (callbackData.startsWith('remove_execute:')) {
+                const urlToRemove = callbackData.substring('remove_execute:'.length);
+                if (userState.custom_feeds) userState.custom_feeds = userState.custom_feeds.filter(url => url !== urlToRemove);
+                await saveUserState(env, chatId, userState);
+                await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "The source has been successfully deleted.");
+                payload = { type: 'callback', data: 'display_feeds', custom_feeds: userState.custom_feeds || [] };
             } else if (callbackData.startsWith('confirm_add:')) {
                 const urlToAdd = callbackData.split(':')[1];
                 if (!userState.custom_feeds) userState.custom_feeds = [];
