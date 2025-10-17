@@ -5,39 +5,33 @@ import random
 import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 
-def fetch_sample_article() -> dict:
-    """Fetch a single sample article for onboarding demo, ignoring memory"""
-    try:
-        with open('config.json', 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        feeds = config.get('rss_feeds', [])
-        if not feeds:
-            return None
-            
-        # Pick one random feed
-        feed_info = random.choice(feeds)
-        feed = feedparser.parse(feed_info['url'])
-        
-        if not feed.entries:
-            return None
-            
-        # Get most recent entries from last 7 days
-        recent_entries = [entry for entry in feed.entries
-                         if hasattr(entry, 'published_parsed')
-                         and time.mktime(entry.published_parsed) > time.time() - 7*86400]
-        
-        # If no recent entries, use any entry
-        entry = random.choice(recent_entries) if recent_entries else random.choice(feed.entries)
-        
-        return {
-            'title': entry.title,
-            'link': entry.link,
-            'summary': entry.summary,
-            'source': feed_info.get('name', feed_info['url'])
-        }
-    except Exception as e:
-        print(f"Error fetching sample article: {e}")
-        return None
+# This function is now defined in modules.content_collector, but we need a local version for the sample
+def fetch_sample_articles(feeds: list) -> list:
+    """A simplified local version to fetch articles for the initial sample."""
+    articles = []
+    if not feeds:
+        # Fallback to config.json ONLY if no user_feeds are provided for the sample
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            feeds = config.get('rss_feeds', [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    for feed_info in random.sample(feeds, min(len(feeds), 3)): # Check 3 random feeds
+        try:
+            feed = feedparser.parse(feed_info['url'])
+            if feed.entries:
+                entry = random.choice(feed.entries)
+                articles.append({
+                    'title': entry.title,
+                    'link': entry.link,
+                    'summary': entry.summary,
+                    'source': feed_info.get('name', feed_info['url'])
+                })
+        except Exception:
+            continue
+    return articles
 
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
@@ -86,10 +80,12 @@ async def main():
             await telegram_sender.send_text_to_telegram(welcome_message)
             
             try:
-                sample_article = fetch_sample_article()
-                if not sample_article:
+                sample_articles = fetch_sample_articles(user_data.get('user_feeds', []))
+                if not sample_articles:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
                     return
+
+                sample_article = random.choice(sample_articles)
                 analysis_dict = ai_processor.process_article_in_persian(
                     sample_article['title'], sample_article['summary'], sample_article['link']
                 )
