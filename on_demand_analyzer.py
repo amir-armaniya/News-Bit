@@ -190,10 +190,28 @@ async def main():
         elif callback_data == 'feeds_done':
             await telegram_sender.send_text_to_telegram("اطلاعات شما ذخیره شد. خلاصه‌ای تحلیل‌شده از آخرین مقالات هر آخر هفته در دسترس شما خواهد بود.")
 
-    # --- Feed Submission Handler (This block is now handled by the 'message' handler) ---
+    # --- Feed Submission Handler ---
     elif input_type == 'feed_submission':
-        print("Note: 'feed_submission' type is deprecated and handled by 'message' type now.")
-        pass
+        submitted_url = user_data.get('url', '')
+        print(f"Received feed submission for URL: {submitted_url}")
+
+        if not submitted_url:
+            await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد. لطفاً دوباره تلاش کنید.")
+            await handle_display_feeds(user_data)
+            return
+
+        # Call the dedicated function to validate and send confirmation buttons
+        # handle_feed_submission returns True if confirmation buttons were sent, False otherwise.
+        was_successful = await handle_feed_submission(submitted_url, user_data)
+        
+        if not was_successful:
+            # If handle_feed_submission returned False, it means validation failed.
+            await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد یا عنوان ندارد. لطفاً لینک دیگری را امتحان کنید.")
+            # Redisplay feed management options upon failure
+            await handle_display_feeds(user_data)
+        
+        # If successful, handle_feed_submission has already sent the confirmation buttons,
+        # and the script should exit successfully (silently).
             
     else:
         print(f"Unknown or unhandled input type: '{input_type}'")
