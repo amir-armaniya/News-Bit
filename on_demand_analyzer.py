@@ -1,13 +1,55 @@
 import os
 import asyncio
-import json
+import json # CRITICAL FIX: Added json import to resolve UnboundLocalError
 import random
 import feedparser
 from modules import ai_processor, telegram_sender, web_scraper
 
+# NEW LOGIC: Isolated function for fetching a sample article for onboarding.
+# This function DOES NOT and SHOULD NOT check or interact with processed_articles.jsonl.
+def fetch_sample_article() -> dict | None:
+    """
+    Fetches a single, random recent article for the initial user demonstration.
+    This function is completely independent of the memory manager.
+    """
+    print("Fetching a sample article for value demonstration...")
+    try:
+        with open('config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        feeds = config.get('rss_feeds', [])
+        if not feeds:
+            print("config.json is empty or has no feeds.")
+            return None
+
+        # Try a few random feeds to increase chances of finding a recent article
+        for feed_info in random.sample(feeds, min(len(feeds), 5)):
+            try:
+                print(f"  -> Checking sample feed: {feed_info.get('name')}")
+                feed = feedparser.parse(feed_info['url'])
+                if feed.entries:
+                    # To ensure freshness, let's pick from the 5 most recent entries
+                    recent_entry = random.choice(feed.entries[:5])
+                    article = {
+                        'title': recent_entry.title,
+                        'link': recent_entry.link,
+                        'summary': recent_entry.summary
+                    }
+                    print(f"  -> Found sample: {article['title']}")
+                    return article
+            except Exception as e:
+                print(f"  -> Could not parse sample feed {feed_info.get('name')}: {e}")
+                continue # Try next feed
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error reading config.json for sample article: {e}")
+        return None
+    
+    print("Could not find any sample articles after checking feeds.")
+    return None
+
 
 async def handle_display_feeds(user_data: dict):
     """Displays the user's current feed list and management options."""
+    # This function remains unchanged, but is included for completeness.
     print("handle_display_feeds triggered.")
     user_feeds = user_data.get('user_feeds', [])
     
@@ -32,7 +74,7 @@ async def main():
     raw_input = os.getenv('ON_DEMAND_INPUT', '{}').strip()
     try:
         user_data = json.loads(raw_input)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError: # Now works because json is imported
         print(f"Error: Could not decode JSON input: {raw_input}")
         return
 
@@ -53,22 +95,12 @@ async def main():
             await telegram_sender.send_text_to_telegram(welcome_message)
             
             try:
-                from modules.content_collector import fetch_sample_article
-                import json
-                
-                # Get default feeds from config.json for sample
-                default_feeds = []
-                try:
-                    with open('config.json', 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                    default_feeds = config.get('rss_feeds', [])
-                except (FileNotFoundError, json.JSONDecodeError):
-                    pass
-                
-                sample_article = fetch_sample_article(default_feeds)
+                # NEW LOGIC: Call the new, isolated function
+                sample_article = fetch_sample_article()
                 if not sample_article:
                     await telegram_sender.send_text_to_telegram("متاسفانه در حال حاضر مقاله جدیدی برای نمایش نمونه پیدا نشد.")
                     return
+
                 analysis_dict = ai_processor.process_article_in_persian(
                     sample_article['title'], sample_article['summary'], sample_article['link']
                 )
@@ -77,6 +109,7 @@ async def main():
                     decision_buttons = [
                         [("عالی، هر هفته برای من ارسال کنید", "activate_quick"), ("عالیه، بریم و منابع رو مشخص کنیم", "activate_custom")]
                     ]
+                    # The sample analysis is sent but NOT saved to memory_manager
                     await telegram_sender.send_article_analysis(analysis_dict, buttons=decision_buttons)
                 else:
                     await telegram_sender.send_text_to_telegram("خطایی در تحلیل مقاله نمونه رخ داد.")
@@ -85,6 +118,7 @@ async def main():
                 await telegram_sender.send_text_to_telegram("یک خطای غیرمنتظره در آماده‌سازی نمونه رخ داد.")
         
         elif user_text.startswith(('http://', 'https://')):
+            # This logic remains the same
             scraped_content = web_scraper.scrape_url(user_text)
             if scraped_content:
                 analysis_dict = ai_processor.process_article_in_persian(
@@ -101,6 +135,8 @@ async def main():
 
     # --- Callback Handler ---
     elif input_type == 'callback':
+        # This entire section can remain as it was in the previous correct version,
+        # as it correctly handles the UI flow.
         callback_data = user_data.get('data')
         print(f"Received callback: {callback_data}")
 
@@ -129,7 +165,7 @@ async def main():
             user_feeds = user_data.get('user_feeds', [])
             if not user_feeds:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع خبری برای حذف ندارید.")
-                await handle_display_feeds(user_data) # Show management options again
+                await handle_display_feeds(user_data)
             else:
                 remove_buttons = [
                     [("❌ " + feed.get('name', feed.get('url')), f"remove_confirm:{feed.get('url')}")]
@@ -161,6 +197,7 @@ async def main():
 
     # --- Feed Submission Handler ---
     elif input_type == 'feed_submission':
+        # This section can also remain as it was.
         submitted_url = user_data.get('url', '')
         if not submitted_url:
             await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد. لطفاً دوباره تلاش کنید.")
@@ -173,7 +210,6 @@ async def main():
                 feed_title = feed.feed.get('title', 'فید بدون عنوان')
                 confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
                 
-                # We must pass the data as a JSON string within the callback data
                 feed_data = json.dumps({"name": feed_title, "url": submitted_url}, ensure_ascii=False)
                 
                 confirmation_buttons = [
