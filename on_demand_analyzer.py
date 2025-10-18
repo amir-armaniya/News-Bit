@@ -1,4 +1,4 @@
-# on_demand_analyzer.py (Corrected Validation & Remove Filter v2)
+# on_demand_analyzer.py
 import os
 import asyncio
 import json
@@ -72,7 +72,7 @@ async def handle_display_feeds(user_data: dict, display_filtered: bool = True):
 
 
 async def handle_feed_submission(submitted_url: str, user_data: dict):
-    """Handles the logic for validating and confirming a new feed URL."""
+    """Handles the logic for validating and confirming a new feed URL, tolerating minor errors."""
     print(f"Handling URL as a potential feed submission: {submitted_url}")
     try:
         headers = {
@@ -80,30 +80,44 @@ async def handle_feed_submission(submitted_url: str, user_data: dict):
         }
         feed = feedparser.parse(submitted_url, request_headers=headers)
 
-        # **RELAXED VALIDATION v2:** Check only for the presence of entries.
-        # Even if bozo=1, if entries exist, we try to add it.
+        # **MORE TOLERANT VALIDATION:** Check primarily for the existence of entries.
+        # Proceed even if feed.bozo is true, as long as we have entries.
         if feed and feed.entries:
             # Try to get title, fallback to URL if missing or empty
             feed_title = feed.feed.get('title', '').strip() or submitted_url
-            confirmation_text = f"فید '{feed_title}' شناسایی شد (ممکن است کمی مشکل داشته باشد اما ورودی دارد). آیا می‌خواهید آن را اضافه کنید؟"
+            
+            confirmation_text = f"فید '{feed_title}' شناسایی شد"
+            if feed.bozo:
+                confirmation_text += " (هشدار: ممکن است فید خطای ساختاری جزئی داشته باشد)"
+            confirmation_text += ". آیا می‌خواهید آن را اضافه کنید؟"
 
             confirmation_buttons = [
                 [("بله، اضافه کن", f"confirm_add:{submitted_url}"), ("خیر، لغو", "cancel_add")]
             ]
+            # Log success even with bozo
+            print(f"Feed validation successful (bozo={feed.bozo}) for {submitted_url}. Sending confirmation.")
             await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
-            return True # Indicates URL was handled as a feed and confirmation sent
+            return True # Indicates URL was handled and confirmation sent
+
         else:
+            # Provide more detailed failure reason in logs
             if feed.bozo:
-                 # Log the specific bozo reason if available
                  bozo_reason = feed.get('bozo_exception', 'Unknown reason')
-                 print(f"Validation failed: Feedparser reported bozo error ({bozo_reason}) and no entries for {submitted_url}")
+                 # Check if the reason itself indicates a critical failure
+                 if isinstance(bozo_reason, Exception) and "not well-formed" in str(bozo_reason):
+                     print(f"Validation Critical Failure: Feedparser reported fatal bozo error '{bozo_reason}' for {submitted_url}")
+                 else:
+                      print(f"Validation Failed: Feedparser reported bozo error '{bozo_reason}' but found NO entries for {submitted_url}")
             elif not feed.entries:
-                 print(f"Validation failed: No entries found in feed {submitted_url}")
+                 print(f"Validation Failed: No entries found in feed {submitted_url}")
             else:
-                 print(f"Validation failed: Unknown feedparser issue (feed object empty?) for {submitted_url}")
+                 # This case should ideally not happen if feed object exists but has no entries
+                 print(f"Validation Failed: Unknown feedparser issue (feed object exists but no entries?) for {submitted_url}")
             return False # Indicates this was not a valid feed
+
     except Exception as e:
-        print(f"Error during feedparser.parse for {submitted_url}: {e}")
+        # Catch errors during the parsing itself (e.g., network issues)
+        print(f"Exception during feedparser.parse for {submitted_url}: {e}")
         return False
 
 async def main():
