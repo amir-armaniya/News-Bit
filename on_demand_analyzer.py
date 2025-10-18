@@ -1,4 +1,4 @@
-# on_demand_analyzer.py (Corrected Add/Remove Logic)
+# on_demand_analyzer.py (Corrected Validation & Remove Filter)
 import os
 import asyncio
 import json
@@ -16,15 +16,17 @@ ALL_TOPICS = {
 def filter_feeds_by_topics(all_feeds: list, selected_topics: list) -> list:
     """Filters a list of feeds based on selected topics."""
     if not selected_topics:
-        return all_feeds # Return all if no topics are selected
+        # If no topics are selected by the user, show ALL feeds (including defaults and custom)
+        print("No topics selected, returning all feeds.")
+        # Ensure all items are dicts before returning
+        return [feed for feed in all_feeds if isinstance(feed, dict)]
 
     print(f"Filtering feeds based on selected topics: {selected_topics}")
-    # Filter logic: include feed if it has NO tags OR includes 'custom' OR has ANY matching selected tag
+    # Filter logic: include feed if it's custom OR has ANY matching selected tag
     filtered_feeds = [
         feed for feed in all_feeds if isinstance(feed, dict) and (
-            not feed.get('tags') or # Should feeds without tags always be shown? Maybe not. Let's reconsider.
             'custom' in feed.get('tags', []) or # Always show custom feeds
-            any(tag in feed.get('tags', []) for tag in selected_topics)
+            any(tag in feed.get('tags', []) for tag in selected_topics) # Show feeds matching selected topics
         )
     ]
     print(f"Original list size: {len(all_feeds)}, Filtered list size: {len(filtered_feeds)}")
@@ -37,7 +39,7 @@ async def handle_display_feeds(user_data: dict, display_filtered: bool = True):
     If display_filtered is True, it filters based on selected_topics.
     """
     print(f"handle_display_feeds triggered. Display filtered: {display_filtered}")
-    all_user_feeds = user_data.get('user_feeds', [])
+    all_user_feeds = user_data.get('user_feeds', []) # This is the full, unfiltered list from Worker
     selected_topics = user_data.get('selected_topics', [])
 
     feeds_to_display = all_user_feeds
@@ -47,8 +49,9 @@ async def handle_display_feeds(user_data: dict, display_filtered: bool = True):
     feed_list_text = "این لیست منابع شماست"
     if display_filtered and selected_topics:
         feed_list_text += " (بر اساس اولویت‌های انتخابی شما)"
+    elif not selected_topics:
+         feed_list_text += " (تمام منابع)" # Clarify when showing all feeds
     feed_list_text += ":\n\n"
-
 
     if not feeds_to_display:
         if display_filtered and selected_topics:
@@ -67,7 +70,6 @@ async def handle_display_feeds(user_data: dict, display_filtered: bool = True):
         [("افزودن فید", "add_feed"), ("حذف فید", "remove_feed")],
         [("نه، عالی است", "feeds_done")]
     ]
-    # Optionally add a button to view all feeds if currently filtered? Maybe later.
     await telegram_sender.send_text_with_buttons("آیا می‌خواهید فیدی اضافه یا حذف کنید؟", action_buttons)
 
 
@@ -75,11 +77,17 @@ async def handle_feed_submission(submitted_url: str, user_data: dict):
     """Handles the logic for validating and confirming a new feed URL."""
     print(f"Handling URL as a potential feed submission: {submitted_url}")
     try:
-        feed = feedparser.parse(submitted_url)
-        # Check for both feed title and entries
-        if feed.feed and feed.feed.get('title') and feed.entries:
-            feed_title = feed.feed.get('title', 'فید بدون عنوان')
-            confirmation_text = f"فید '{feed_title}' را پیدا کردم. آیا می‌خواهید آن را به لیست اضافه کنید؟"
+        # Use a timeout and user-agent for robustness
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        # feedparser might need explicit agent handling, let's try direct parse first
+        feed = feedparser.parse(submitted_url, request_headers=headers) # Add headers here too
+
+        # **RELAXED VALIDATION:** Check primarily for entries. Title is desirable but not strictly required.
+        if feed and feed.entries:
+            feed_title = feed.feed.get('title', submitted_url) # Fallback to URL if title is missing
+            confirmation_text = f"فید '{feed_title}' معتبر به نظر می‌رسد. آیا می‌خواهید آن را به لیست اضافه کنید؟"
 
             # Short callback data: Only the URL
             confirmation_buttons = [
@@ -88,7 +96,13 @@ async def handle_feed_submission(submitted_url: str, user_data: dict):
             await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
             return True # Indicates URL was handled as a feed and confirmation sent
         else:
-            print("Validation failed: Feed has no title or no entries.")
+            # More specific error logging
+            if feed.bozo:
+                 print(f"Validation failed: Feedparser reported bozo error {feed.bozo_exception} for {submitted_url}")
+            elif not feed.entries:
+                 print(f"Validation failed: No entries found in feed {submitted_url}")
+            else:
+                 print(f"Validation failed: Unknown feedparser issue for {submitted_url}")
             return False # Indicates this was not a valid feed
     except Exception as e:
         print(f"Error parsing feed URL during submission check: {e}")
@@ -115,7 +129,7 @@ async def main():
         print(f"Received message: {user_text}")
 
         if user_text.lower() == '/start':
-            # --- /start logic (Correct, no changes needed) ---
+            # --- /start logic (Remains Correct) ---
             welcome_message = f"{user_first_name} عزیز، سلام! ..." # Omitted for brevity
             await telegram_sender.send_text_to_telegram(welcome_message)
             try:
@@ -149,8 +163,7 @@ async def main():
 
 
         elif user_text.startswith(('http://', 'https://')):
-            # --- URL Handling (Correct, no changes needed) ---
-            # It should NOT try feed submission here anymore. Worker handles state.
+            # --- URL Handling (Remains Correct - No feed check here) ---
             print("Treating URL as article for scraping.")
             scraped_content = web_scraper.scrape_url(user_text)
             if scraped_content:
@@ -173,13 +186,13 @@ async def main():
         print(f"Received callback: {callback_data}")
 
         if callback_data == 'activate_quick':
-            # --- activate_quick logic (Correct, save prefs) ---
+            # --- activate_quick logic (Correct) ---
             user_prefs = { 'selected_topics': [], 'user_feeds': user_data.get('user_feeds', []) }
             memory_manager.save_user_preferences(user_prefs)
             await telegram_sender.send_text_to_telegram("عالی! گزارش‌های شما هر جمعه ساعت ۹ صبح به وقت تهران ارسال خواهد شد.")
 
         elif callback_data == 'activate_custom' or callback_data == 'display_topics':
-             # --- Topic Display Logic (Correct, no changes needed) ---
+             # --- Topic Display Logic (Correct) ---
              intro_text = "اولویت‌های اصلی شما چیست؟ (می‌توانید تا سه مورد را انتخاب کنید)"
              selected_topics = user_data.get('selected_topics', [])
              topic_buttons = []
@@ -197,7 +210,7 @@ async def main():
 
 
         elif callback_data == 'topics_done':
-            # --- topics_done logic (Correct, filter before display) ---
+            # --- topics_done logic (Correct) ---
             await telegram_sender.send_text_to_telegram("اولویت‌های شما ثبت شد. حالا منابع خبری مرتبط با انتخاب شما را مدیریت کنید.")
             # Display feeds, filtered by topics selected
             await handle_display_feeds(user_data, display_filtered=True)
@@ -207,7 +220,7 @@ async def main():
             await telegram_sender.send_text_to_telegram("لطفاً لینک فید RSS مورد نظر خود را برای من ارسال کنید.")
 
         elif callback_data == 'remove_feed':
-            # **CORRECTED LOGIC FOR REMOVE FEED**
+            # **CORRECTED LOGIC: FILTER BEFORE DISPLAYING REMOVAL OPTIONS**
             all_user_feeds = user_data.get('user_feeds', [])
             selected_topics = user_data.get('selected_topics', [])
 
@@ -231,7 +244,7 @@ async def main():
             # --- remove_confirm logic (Correct) ---
             url = callback_data.split(':', 1)[1]
             feed_name = url
-            user_feeds = user_data.get('user_feeds', [])
+            user_feeds = user_data.get('user_feeds', []) # Get full list for name lookup
             for feed in user_feeds:
                  if isinstance(feed, dict) and feed.get('url') == url:
                     feed_name = feed.get('name', url)
@@ -249,7 +262,7 @@ async def main():
 
 
         elif callback_data == 'feeds_done':
-            # --- feeds_done logic (Correct, save prefs) ---
+            # --- feeds_done logic (Correct) ---
             user_prefs = {
                 'selected_topics': user_data.get('selected_topics', []),
                 'user_feeds': user_data.get('user_feeds', []) # Save the full, unfiltered list
@@ -272,14 +285,14 @@ async def main():
             await handle_display_feeds(user_data, display_filtered=True)
             return
 
-        # Call the validation function (which sends confirmation buttons on success)
-        was_successful = await handle_feed_submission(submitted_url, user_data)
+        # Call the validation function (sends confirmation buttons on success)
+        was_successful_validation = await handle_feed_submission(submitted_url, user_data)
 
-        if not was_successful:
+        if not was_successful_validation:
             # If validation failed, inform user and redisplay options
-            await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد یا عنوان ندارد. لطفاً لینک دیگری را امتحان کنید.")
+            await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد (عنوان یا ورودی ندارد). لطفاً لینک دیگری را امتحان کنید.")
             await handle_display_feeds(user_data, display_filtered=True)
-        # If successful, handle_feed_submission sent buttons, so script exits here.
+        # If successful, handle_feed_submission sent buttons, script exits.
 
     else:
         print(f"Unknown or unhandled input type: '{input_type}'")
