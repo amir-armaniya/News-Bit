@@ -1,4 +1,4 @@
-# on_demand_analyzer.py (Corrected Validation & Remove Filter)
+# on_demand_analyzer.py (Corrected Validation & Remove Filter v2)
 import os
 import asyncio
 import json
@@ -16,10 +16,8 @@ ALL_TOPICS = {
 def filter_feeds_by_topics(all_feeds: list, selected_topics: list) -> list:
     """Filters a list of feeds based on selected topics."""
     if not selected_topics:
-        # If no topics are selected by the user, show ALL feeds (including defaults and custom)
         print("No topics selected, returning all feeds.")
-        # Ensure all items are dicts before returning
-        return [feed for feed in all_feeds if isinstance(feed, dict)]
+        return [feed for feed in all_feeds if isinstance(feed, dict)] # Return all valid dicts
 
     print(f"Filtering feeds based on selected topics: {selected_topics}")
     # Filter logic: include feed if it's custom OR has ANY matching selected tag
@@ -77,35 +75,35 @@ async def handle_feed_submission(submitted_url: str, user_data: dict):
     """Handles the logic for validating and confirming a new feed URL."""
     print(f"Handling URL as a potential feed submission: {submitted_url}")
     try:
-        # Use a timeout and user-agent for robustness
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        # feedparser might need explicit agent handling, let's try direct parse first
-        feed = feedparser.parse(submitted_url, request_headers=headers) # Add headers here too
+        feed = feedparser.parse(submitted_url, request_headers=headers)
 
-        # **RELAXED VALIDATION:** Check primarily for entries. Title is desirable but not strictly required.
+        # **RELAXED VALIDATION v2:** Check only for the presence of entries.
+        # Even if bozo=1, if entries exist, we try to add it.
         if feed and feed.entries:
-            feed_title = feed.feed.get('title', submitted_url) # Fallback to URL if title is missing
-            confirmation_text = f"فید '{feed_title}' معتبر به نظر می‌رسد. آیا می‌خواهید آن را به لیست اضافه کنید؟"
+            # Try to get title, fallback to URL if missing or empty
+            feed_title = feed.feed.get('title', '').strip() or submitted_url
+            confirmation_text = f"فید '{feed_title}' شناسایی شد (ممکن است کمی مشکل داشته باشد اما ورودی دارد). آیا می‌خواهید آن را اضافه کنید؟"
 
-            # Short callback data: Only the URL
             confirmation_buttons = [
                 [("بله، اضافه کن", f"confirm_add:{submitted_url}"), ("خیر، لغو", "cancel_add")]
             ]
             await telegram_sender.send_text_with_buttons(confirmation_text, confirmation_buttons)
             return True # Indicates URL was handled as a feed and confirmation sent
         else:
-            # More specific error logging
             if feed.bozo:
-                 print(f"Validation failed: Feedparser reported bozo error {feed.bozo_exception} for {submitted_url}")
+                 # Log the specific bozo reason if available
+                 bozo_reason = feed.get('bozo_exception', 'Unknown reason')
+                 print(f"Validation failed: Feedparser reported bozo error ({bozo_reason}) and no entries for {submitted_url}")
             elif not feed.entries:
                  print(f"Validation failed: No entries found in feed {submitted_url}")
             else:
-                 print(f"Validation failed: Unknown feedparser issue for {submitted_url}")
+                 print(f"Validation failed: Unknown feedparser issue (feed object empty?) for {submitted_url}")
             return False # Indicates this was not a valid feed
     except Exception as e:
-        print(f"Error parsing feed URL during submission check: {e}")
+        print(f"Error during feedparser.parse for {submitted_url}: {e}")
         return False
 
 async def main():
@@ -130,6 +128,7 @@ async def main():
 
         if user_text.lower() == '/start':
             # --- /start logic (Remains Correct) ---
+            # ... (omitted for brevity) ...
             welcome_message = f"{user_first_name} عزیز، سلام! ..." # Omitted for brevity
             await telegram_sender.send_text_to_telegram(welcome_message)
             try:
@@ -212,8 +211,7 @@ async def main():
         elif callback_data == 'topics_done':
             # --- topics_done logic (Correct) ---
             await telegram_sender.send_text_to_telegram("اولویت‌های شما ثبت شد. حالا منابع خبری مرتبط با انتخاب شما را مدیریت کنید.")
-            # Display feeds, filtered by topics selected
-            await handle_display_feeds(user_data, display_filtered=True)
+            await handle_display_feeds(user_data, display_filtered=True) # Display filtered list
 
         elif callback_data == 'add_feed':
             # --- add_feed logic (Correct) ---
@@ -229,8 +227,7 @@ async def main():
 
             if not feeds_to_display_for_removal:
                 await telegram_sender.send_text_to_telegram("شما هیچ منبع خبری (مطابق با اولویت‌ها) برای حذف ندارید.")
-                # Show management options again, displaying potentially filtered list
-                await handle_display_feeds(user_data, display_filtered=True)
+                await handle_display_feeds(user_data, display_filtered=True) # Show filtered management options
             else:
                 remove_buttons = [
                     [("❌ " + feed.get('name', feed.get('url')), f"remove_confirm:{feed.get('url')}")]
@@ -281,7 +278,6 @@ async def main():
 
         if not submitted_url:
             await telegram_sender.send_text_to_telegram("هیچ لینکی دریافت نشد. لطفاً دوباره تلاش کنید.")
-            # Redisplay feed management options, filtered
             await handle_display_feeds(user_data, display_filtered=True)
             return
 
@@ -290,7 +286,8 @@ async def main():
 
         if not was_successful_validation:
             # If validation failed, inform user and redisplay options
-            await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد (عنوان یا ورودی ندارد). لطفاً لینک دیگری را امتحان کنید.")
+            # More specific error message based on relaxed validation
+            await telegram_sender.send_text_to_telegram("لینک RSS ارسالی معتبر به نظر نمی‌رسد یا هیچ ورودی‌ای در آن یافت نشد. لطفاً لینک دیگری را امتحان کنید.")
             await handle_display_feeds(user_data, display_filtered=True)
         # If successful, handle_feed_submission sent buttons, script exits.
 
