@@ -5,36 +5,12 @@
       "url": "https://www.lennysnewsletter.com/feed"
     },
     {
-      "name": "Reforge",
-      "url": "https://www.reforge.com/blog/rss.xml"
-    },
-    {
       "name": "SaaStr",
       "url": "https://www.saastr.com/feed/"
     },
     {
-      "name": "First Round Review",
-      "url": "http://firstround.com/review/feed.xml"
-    },
-    {
       "name": "Y Combinator",
       "url": "https://www.ycombinator.com/blog/rss"
-    },
-    {
-      "name": "a16z",
-      "url": "https://a16z.com/feed/"
-    },
-    {
-      "name": "AI Breakfast",
-      "url": "https://aibreakfast.beehiiv.com/feed"
-    },
-    {
-      "name": "Ben's Bites",
-      "url": "https://www.bensbites.co/feed"
-    },
-    {
-      "name": "DeepLearning.AI",
-      "url": "https://www.deeplearning.ai/the-batch/rss.xml"
     },
     {
       "name": "FinTech Futures",
@@ -42,11 +18,7 @@
     },
     {
       "name": "Harvard Business Review",
-      "url": "https://hbr.org/feed"
-    },
-    {
-      "name": "Mind the Product",
-      "url": "https://www.mindtheproduct.com/feed/"
+      "url": "http://feeds.harvardbusiness.org/harvardbusiness/"
     },
     {
       "name": "TechCrunch",
@@ -58,7 +30,155 @@
     },
     {
       "name": "Product Hunt",
-      "url": "https://www.producthunt.com/feed.rss"
+      "url": "https://www.producthunt.com/feed"
+    },
+    {
+      "name": "marktechpost",
+      "url": "https://www.marktechpost.com/feed/"
+    },
+    {
+      "name": "google research",
+      "url": "https://research.google/blog/rss/"
+    },
+    {
+      "name": "mit news",
+      "url": "https://news.mit.edu/rss/topic/artificial-intelligence2"
+    },
+    {
+      "name": "oreilly (Ai-ML)",
+      "url": "https://www.oreilly.com/radar/topics/ai-ml/feed/"
+    },
+    {
+      "name": "microsoft news",
+      "url": "https://news.microsoft.com/source/topics/ai/feed/"
+    },
+    {
+        "name": "technologyreview (Ai)",
+        "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    },
+    {
+      "name": "kdnuggets",
+      "url": "https://www.kdnuggets.com/feed"
+    },
+    {
+      "name": "machinelearningmastery",
+      "url": "https://machinelearningmastery.com/blog/feed/"
+    },
+    {
+      "name": "finextra",
+      "url": "https://www.finextra.com/rss/channel.aspx?channel=ai"
+    },
+    {
+      "name": "OpenAI Blog",
+      "url": "https://openai.com/news/rss.xml"
+    },
+    {
+      "name": "Google AI Blog",
+      "url": "https://blog.research.google/rss.xml"
+    },
+    {
+      "name": "Microsoft AI Blog",
+      "url": "https://blogs.microsoft.com/ai/feed/"
+    },
+    {
+      "name": "CB Insights Research",
+      "url": "https://www.cbinsights.com/research/feed/"
+    },
+    {
+      "name": "The Fintech Times",
+      "url": "https://thefintechtimes.com/feed/"
+    },
+    {
+        "name": "Marty Cagan's Blog",
+        "url": "https://svpg.com/feed/"
+    },
+    {
+        "name": "Product Plan Blog",
+        "url": "https://www.productplan.com/feed/"
+    },
+    {
+        "name": "Harvard Business Review - Leadership",
+        "url": "https://hbr.org/topic/subject/leadership/feed"
+    },
+    {
+        "name": "GrowthHackers",
+        "url": "https://growthhackers.com/feed/"
+    },
+    {
+        "name": "financemagnates (fintech)",
+        "url": "https://www.financemagnates.com/fintech/feed/"
+    },
+    {
+        "name": "fintechnews",
+        "url": "https://fintechnews.sg/feed/"
+    },
+    {
+        "name": "openviewpartners",
+        "url": "https://openviewpartners.com/blog/feed"
+    },
+    {
+        "name": "techcrunch (fintech)",
+        "url": "https://techcrunch.com/tag/fintech/feed/"
+    },
+    {
+        "name": "nasdaq (FinTech  )",
+        "url": "https://www.nasdaq.com/feed/rssoutbound?category=FinTech"
+    },
+    {
+        "name": "sparktoro",
+        "url": "https://sparktoro.com/blog/feed/"
+    },
+    {
+        "name": "buffer",
+        "url": "https://buffer.com/resources/rss/"
+    },
+    {
+        "name": "ahrefs",
+        "url": "https://ahrefs.com/blog/feed/"
+    },
+    {
+        "name": "moz.com",
+        "url": "https://moz.com/feeds/blog.rss"
+    },
+    {
+        "name": "saas-capital",
+        "url": "https://www.saas-capital.com/blog-posts/feed/"
+    },
+    {
+        "name": "saasmag",
+        "url": "https://www.saasmag.com/feed/"
+    },
+    {
+        "name": "helpscout",
+        "url": "https://www.helpscout.com/feed.xml"
+    },
+    {
+        "name": "kellblog",
+        "url": "https://kellblog.com/feed/"
+    },
+    {
+        "name": "tomtunguz",
+        "url": "https://tomtunguz.com/index.xml"
+    },
+    {
+        "name": "agile-operator",
+        "url": "https://agile-operator.com/feed/"
+    },
+    {
+        "name": "crazyegg",
+        "url": "https://www.crazyegg.com/blog/feed/"
+    },
+    {
+        "name": "saasmetrics",
+        "url": "https://saasmetrics.co/feed/"
+    },
+    {
+        "name": "techcrunch (saas)",
+        "url": "https://techcrunch.com/tag/saas/feed/"
+    },
+    {
+        "name": "chartmogul",
+        "url": "https://chartmogul.com/blog/feed/"
     }
   ]
 }
