@@ -1,8 +1,8 @@
 import os
-from telegram import Bot
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
-async def send_article_analysis(analysis_dict: dict) -> bool:
+async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bool:
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
@@ -50,11 +50,25 @@ async def send_article_analysis(analysis_dict: dict) -> bool:
 
 [لینک منبع]({link})"""
     
+    # --- NEW LOGIC FOR BUTTONS ---
+    reply_markup = None
+    if buttons:
+        keyboard = [
+            [InlineKeyboardButton(text, callback_data=data) for text, data in row]
+            for row in buttons
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    
     bot = Bot(token=token)
     
     async with bot:
         try:
-            await bot.send_message(chat_id=chat_id, text=message, parse_mode='MarkdownV2')
+            await bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode='MarkdownV2',
+                reply_markup=reply_markup
+            )
             print("Article analysis sent to Telegram successfully.")
             return True
         except TelegramError as e:
@@ -113,4 +127,37 @@ async def send_text_to_telegram(text: str) -> bool:
             return True
         except TelegramError as e:
             print(f"Error sending text to Telegram: {e}")
+            return False
+
+async def send_text_with_buttons(text: str, buttons: list, chat_id: str = None) -> bool:
+    """Sends a simple text message with an inline keyboard."""
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = chat_id or os.getenv('TELEGRAM_CHAT_ID')
+    
+    if not token or not chat_id:
+        print("Critical error: Telegram credentials not found.")
+        return False
+
+    def escape_markdown_v2(text: str) -> str:
+        chars_to_escape = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+        for char in chars_to_escape:
+            text = text.replace(char, f'\\{char}')
+        return text
+
+    escaped_text = escape_markdown_v2(text)
+
+    keyboard = [
+        [InlineKeyboardButton(btn_text, callback_data=data) for btn_text, data in row]
+        for row in buttons
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    bot = Bot(token=token)
+    async with bot:
+        try:
+            await bot.send_message(chat_id=chat_id, text=escaped_text, reply_markup=reply_markup, parse_mode='MarkdownV2')
+            print("Message with buttons sent successfully.")
+            return True
+        except TelegramError as e:
+            print(f"Error sending message with buttons: {e}")
             return False

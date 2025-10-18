@@ -1,6 +1,7 @@
 # modules/content_collector.py
 import json
 import feedparser
+import random
 from datetime import datetime, timedelta, timezone
 import time
 from modules import memory_manager
@@ -13,7 +14,7 @@ def fetch_recent_articles(config_path: str) -> list:
     # --- Load already processed links from memory ---
     processed_links = memory_manager.load_processed_links()
     print(f"Loaded {len(processed_links)} links from memory.")
-    
+
     # Read and parse config
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -42,7 +43,7 @@ def fetch_recent_articles(config_path: str) -> list:
         # Get URL and name from the dictionary
         url = feed_info.get('url')
         name = feed_info.get('name', url) # Use URL as fallback name
-        
+
         if not url:
             continue
 
@@ -54,7 +55,7 @@ def fetch_recent_articles(config_path: str) -> list:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             feed = feedparser.parse(url, request_headers=headers)
-            
+
             if feed.bozo:
                 print(f"   Warning parsing feed: {feed.bozo_exception}")
                 # Continue processing even with warnings
@@ -84,12 +85,53 @@ def fetch_recent_articles(config_path: str) -> list:
         except Exception as e:
             print(f"   Error fetching feed: {e}")
             continue
-        
+
         # Be a good citizen to the feed server
         time.sleep(1)
 
     # --- NEW: Save the updated list of processed links
     memory_manager.save_processed_links(processed_links)
-    
+
     print(f"\nFinished fetching. Total new articles found: {len(articles)}")
     return articles
+    return articles
+
+def fetch_sample_articles_from_feeds(feeds_config: list) -> list:
+    """
+    Fetches a small number of random articles for sample demonstration ONLY.
+    This function intentionally IGNORES the processed_links memory.
+    """
+    articles = []
+    if not feeds_config:
+        return []
+
+    # Check up to 3 random feeds to find at least one article quickly
+    for feed_info in random.sample(feeds_config, min(len(feeds_config), 3)):
+        try:
+            print(f"-> Fetching sample from: {feed_info.get('name')}")
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            feed = feedparser.parse(feed_info['url'], request_headers=headers)
+            if feed.entries:
+                # Pick a random recent entry
+                entry = random.choice(feed.entries)
+                article = {
+                    'title': entry.title,
+                    'link': entry.link,
+                    'summary': entry.summary,
+                    'source': feed_info.get('name', feed_info['url'])
+                }
+                articles.append(article)
+        except Exception as e:
+            print(f"   Error fetching sample from feed: {e}")
+            continue
+    return articles
+
+def fetch_sample_article(feeds: list) -> dict:
+    """
+    Fetches a single random article from randomly selected feeds without memory checks.
+    Designed for onboarding sample articles that should always be fresh.
+    """
+    articles = fetch_sample_articles_from_feeds(feeds)
+    return random.choice(articles) if articles else None

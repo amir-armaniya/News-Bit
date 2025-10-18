@@ -51,3 +51,18 @@ def save_analysis(analysis_dict: dict):
             f.write(json.dumps(analysis_dict, ensure_ascii=False) + '\n')
     except Exception as e:
         print(f"Error saving analysis to memory file: {e}")
+
+def save_user_preferences(prefs: dict):
+    """Saves the user's selected topics and final feed list to a JSON file."""
+    try:
+        # Basic validation
+        if not isinstance(prefs.get('selected_topics'), list):
+            prefs['selected_topics'] = []
+        if not isinstance(prefs.get('user_feeds'), list):
+            prefs['user_feeds'] = []
+            
+        with open('user_prefs.json', 'w', encoding='utf-8') as f:
+            json.dump(prefs, f, ensure_ascii=False, indent=2)
+        print(f"Successfully saved user preferences: {prefs}")
+    except Exception as e:
+        print(f"CRITICAL ERROR saving user preferences: {e}")

@@ -12,6 +12,15 @@ socket.setdefaulttimeout(20)
 
 async def main():
     CONFIG_PATH = "config.json"
+    
+    # Load user preferences
+    user_prefs = {}
+    try:
+        with open('user_prefs.json', 'r', encoding='utf-8') as f:
+            user_prefs = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+        
     all_articles = modules.content_collector.fetch_recent_articles(CONFIG_PATH)
 
     if not all_articles:
@@ -32,7 +41,11 @@ async def main():
         max_retries = 3
         for retry in range(max_retries):
             try:
-                if modules.ai_processor.is_article_relevant(article['title'], article['summary']):
+                if modules.ai_processor.is_article_relevant(
+                    article['title'],
+                    article['summary'],
+                    selected_topics=user_prefs.get('selected_topics')
+                ):
                     relevant_articles.append(article)
                     print("   -> RELEVANT")
                 else:
