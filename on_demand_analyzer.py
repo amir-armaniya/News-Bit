@@ -204,20 +204,39 @@ async def main():
             await telegram_sender.send_text_to_telegram("لطفاً لینک فید RSS مورد نظر خود را برای من ارسال کنید.")
 
         elif callback_data == 'remove_feed':
-            # IMPORTANT: The list shown for removal should be the UNFILTERED list from the worker state
-            user_feeds_unfiltered = user_data.get('user_feeds', [])
-            if not user_feeds_unfiltered:
-                await telegram_sender.send_text_to_telegram("شما هیچ منبع خبری برای حذف ندارید.")
-                # Show management options again, passing unfiltered list
-                await handle_display_feeds({'user_feeds': user_feeds_unfiltered})
+            selected_topics = user_data.get('selected_topics', [])
+            all_user_feeds = user_data.get('user_feeds', []) # Get the full list from worker
+
+            feeds_to_display_for_removal = all_user_feeds # Default to all if no topics selected
+
+            if selected_topics:
+                print(f"Filtering feeds for removal based on: {selected_topics}")
+                filtered_feeds = [
+                    feed for feed in all_user_feeds if isinstance(feed, dict) and (
+                        not feed.get('tags') or
+                        'custom' in feed.get('tags', []) or
+                        any(tag in feed.get('tags', []) for tag in selected_topics)
+                    )
+                ]
+                feeds_to_display_for_removal = filtered_feeds
+                print(f"Filtered list size for removal: {len(feeds_to_display_for_removal)}")
+
+            if not feeds_to_display_for_removal:
+                await telegram_sender.send_text_to_telegram("شما هیچ منبع خبری (بر اساس اولویت‌ها) برای حذف ندارید.")
+                # Show management options again, passing unfiltered list from worker state
+                # Ensures user can still add feeds even if filtered list is empty
+                await handle_display_feeds({'user_feeds': all_user_feeds})
             else:
                 remove_buttons = [
-                    # Ensure feed is a dict before accessing keys
                     [("❌ " + feed.get('name', feed.get('url')), f"remove_confirm:{feed.get('url')}")]
-                    for feed in user_feeds_unfiltered if isinstance(feed, dict) and feed.get('url')
+                    # Generate buttons ONLY from the filtered list
+                    for feed in feeds_to_display_for_removal if isinstance(feed, dict) and feed.get('url')
                 ]
                 remove_buttons.append([("لغو و بازگشت", "display_feeds")])
-                await telegram_sender.send_text_with_buttons("کدام منبع را می‌خواهید حذف کنید؟", remove_buttons)
+                await telegram_sender.send_text_with_buttons(
+                    "کدام منبع (از لیست فیلتر شده) را می‌خواهید حذف کنید؟",
+                    remove_buttons
+                )
 
 
         elif callback_data.startswith('remove_confirm:'):
