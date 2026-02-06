@@ -1,7 +1,7 @@
 
 # English:
 
-# Strategic Radar Assistant
+# News Bit Assistant
 
 This project is an intelligent and automated pipeline for collecting, filtering, analyzing, and presenting news and articles. The system is designed to act as a personal strategic assistant for a startup founder or product manager, providing tailored analysis via a fully interactive Telegram bot.
 
@@ -72,7 +72,7 @@ To set up this assistant, follow these steps:
 
 # Persian:
 
-# دستیار رادار استراتژیک (Strategic Radar Assistant)
+# دستیار News Bit
 
 این پروژه یک پایپ‌لاین (pipeline) هوشمند و خودکار برای جمع‌آوری، فیلتر، تحلیل و ارائه اخبار و مقالات است. سیستم به گونه‌ای طراحی شده که به عنوان یک دستیار استراتژیک شخصی برای یک بنیان‌گذار استارتاپ یا مدیر محصول عمل کند و تحلیل‌های سفارشی‌شده را از طریق یک ربات تلگرام کاملاً تعاملی ارائه دهد.
 
