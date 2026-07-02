@@ -11,7 +11,11 @@ from modules import memory_manager
 load_dotenv()
 socket.setdefaulttimeout(20)
 
-async def main():
+# Default language setting
+DEFAULT_LANGUAGE = 'en'
+
+async def process_news_once():
+    """Process news once - used by both manual and auto modes."""
     CONFIG_PATH = "config.json"
     
     # Load user preferences
@@ -21,13 +25,15 @@ async def main():
             user_prefs = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
+    
+    # Get language setting
+    language = user_prefs.get('language', DEFAULT_LANGUAGE)
         
     all_articles = modules.content_collector.fetch_recent_articles(CONFIG_PATH)
 
     if not all_articles:
-        print("No new articles found. Exiting.")
-        await modules.telegram_sender.send_text_to_telegram("No new articles found for analysis.")
-        return
+        print("No new articles found.")
+        return False
 
     print(f"Fetched {len(all_articles)} total articles. Starting relevance filtering...")
 
@@ -62,9 +68,8 @@ async def main():
         await asyncio.sleep(3)
     
     if not relevant_articles:
-        print("No relevant articles found after filtering. Exiting.")
-        await modules.telegram_sender.send_text_to_telegram("New articles were found, but none were relevant to your work area.")
-        return
+        print("No relevant articles found after filtering.")
+        return False
         
     print(f"\nFound {len(relevant_articles)} relevant articles. Processing...")
 
@@ -77,7 +82,7 @@ async def main():
 
         if analysis_dict:
             memory_manager.save_analysis(analysis_dict)
-            await modules.telegram_sender.send_article_analysis(analysis_dict)
+            await modules.telegram_sender.send_article_analysis(analysis_dict, language=language)
         else:
             print(f"Warning: Failed to analyze article: {article['title']}. Skipping.")
 
@@ -86,6 +91,42 @@ async def main():
         
     await modules.telegram_sender.send_text_to_telegram(f"Successfully processed {len(relevant_articles)} relevant articles.")
     print("--- All articles processed. Mission complete. ---")
+    return True
+
+async def main():
+    """Main entry point - supports both single run and auto mode."""
+    # Load user preferences to check mode
+    user_prefs = {}
+    try:
+        with open('user_prefs.json', 'r', encoding='utf-8') as f:
+            user_prefs = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    
+    # Check if auto mode is enabled
+    auto_mode = user_prefs.get('auto_mode', False)
+    language = user_prefs.get('language', DEFAULT_LANGUAGE)
+    
+    if auto_mode:
+        print("=== AUTO MODE ENABLED ===")
+        print(f"Language: {language}")
+        print("Will process news every 30 minutes...")
+        
+        while True:
+            try:
+                await process_news_once()
+                print(f"\nWaiting 30 minutes before next check...")
+                await asyncio.sleep(1800)  # 30 minutes
+            except KeyboardInterrupt:
+                print("\nAuto mode stopped by user.")
+                break
+            except Exception as e:
+                print(f"Error in auto mode: {e}")
+                print("Waiting 5 minutes before retry...")
+                await asyncio.sleep(300)  # 5 minutes on error
+    else:
+        print("=== SINGLE RUN MODE ===")
+        await process_news_once()
 
 if __name__ == "__main__":
     asyncio.run(main())

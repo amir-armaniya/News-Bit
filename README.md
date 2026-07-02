@@ -1,4 +1,4 @@
-# News Bit
+# News Bit - Auto News Detective
 
 An automated news intelligence pipeline that collects, filters, and analyzes articles using AI, delivering personalized strategic insights through an interactive Telegram bot.
 
@@ -7,7 +7,8 @@ Built on **GitHub Actions** (free CI/CD), **Cloudflare Workers** (serverless bri
 ## Features
 
 - **Interactive Telegram Bot** — Guided onboarding, topic selection, and dynamic feed management via inline buttons
-- **Dual-Mode Operation** — Weekly scheduled analysis of RSS feeds + instant on-demand analysis of any URL
+- **Auto Mode** — Automatically detects and sends important news every 30 minutes
+- **Multi-Language Support** — Translate news to Farsi, Arabic, or English with synchronized menu
 - **AI-Powered Filtering** — A fast, low-cost model pre-screens articles for relevance before expensive deep analysis
 - **Deep Strategic Analysis** — Multi-part insights including summary, contrarian viewpoint, practical application, and glossary
 - **Web Scraping** — Extracts content from any webpage, even without RSS support
@@ -24,7 +25,7 @@ Cloudflare Worker (bridge + KV state)
     v
 GitHub Actions
     ├── on_demand_analyzer.py  (interactive: onboarding, customization, URL analysis)
-    └── main.py                (scheduled: weekly RSS collection + analysis)
+    └── main.py                (auto mode: every 30 minutes + manual run)
     |
     v
 Telegram (formatted Markdown output)
@@ -32,23 +33,42 @@ Telegram (formatted Markdown output)
 
 1. **Cloudflare Worker** receives Telegram webhooks, manages user state (topics, feeds) in KV storage, and triggers the appropriate GitHub Actions workflow
 2. **`on_demand_analyzer.py`** handles the full interactive user journey — onboarding flow, topic/feed customization menus, and on-demand link analysis
-3. **`main.py`** runs on a weekly schedule to collect articles from RSS feeds, filter by relevance, and generate strategic analyses
+3. **`main.py`** runs in auto mode (every 30 minutes) or single-run mode to collect articles from RSS feeds, filter by relevance, and generate strategic analyses
+
+## Auto Mode & Language Settings
+
+### Auto Mode
+- Automatically checks for new articles every 30 minutes
+- Processes and sends relevant news without manual intervention
+- Can be toggled on/off via Telegram settings menu
+
+### Multi-Language Support
+- **Farsi (فارسی)** — Full translation of news and menu
+- **Arabic (العربية)** — Full translation of news and menu
+- **English** — Default language
+
+Language settings are synchronized across:
+- News content translation
+- Telegram bot menu labels
+- Section headers in messages
 
 ## Project Structure
 
 ```
 News-Bit/
-├── main.py                    # Weekly scheduled pipeline
+├── main.py                    # Auto mode (30 min) + manual run
 ├── on_demand_analyzer.py      # Interactive event handler
 ├── config.json                # Default RSS feed list
 ├── context.txt                # User profile & interests (personalization)
 ├── requirements.txt           # Python dependencies
 ├── processed_articles.jsonl   # Article deduplication memory
+├── user_prefs.json            # User settings (language, auto mode)
 ├── modules/
-│   ├── ai_processor.py        # OpenRouter AI filtering & analysis
-│   ├── content_collector.py   # RSS feed reader
+│   ├── ai_processor.py        # OpenRouter AI filtering, analysis & translation
+│   ├── content_collector.py   # RSS feed reader (30-min window)
 │   ├── memory_manager.py      # Persistence layer
-│   ├── telegram_sender.py     # Telegram API integration
+│   ├── settings_manager.py    # Language & auto mode settings
+│   ├── telegram_sender.py     # Telegram API integration (multi-language)
 │   └── web_scraper.py         # HTML content extraction
 └── cloudflare-worker/
     └── index.js               # Cloudflare Worker (webhook handler + KV state)

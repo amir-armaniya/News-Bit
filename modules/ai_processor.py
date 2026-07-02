@@ -7,6 +7,13 @@ FAST_MODEL = "openai/gpt-oss-20b:free"
 # Powerful model for deep strategic analysis
 POWERFUL_MODEL = "openai/gpt-oss-20b:free"
 
+# Language configurations for translation
+LANGUAGE_CONFIGS = {
+    'fa': {'name': 'فارسی', 'code': 'fa', 'menu': {'settings': 'تنظیمات', 'language': 'زبان', 'news': 'اخبار', 'auto_mode': 'حالت خودکار', 'summary': 'خلاصه جامع', 'contrarian': 'دیدگاه متفاوت', 'practical': 'کاربرد عملی برای شما', 'glossary': 'واژه‌نامه'}},
+    'ar': {'name': 'العربية', 'code': 'ar', 'menu': {'settings': 'الإعدادات', 'language': 'اللغة', 'news': 'الأخبار', 'auto_mode': 'الوضع التلقائي', 'summary': 'ملخص شامل', 'contrarian': 'وجهة نظر معارضة', 'practical': 'التطبيق العملي لك', 'glossary': 'المسرد'}},
+    'en': {'name': 'English', 'code': 'en', 'menu': {'settings': 'Settings', 'language': 'Language', 'news': 'News', 'auto_mode': 'Auto Mode', 'summary': 'Comprehensive Summary', 'contrarian': 'Contrarian View', 'practical': 'Practical Application for You', 'glossary': 'Glossary'}}
+}
+
 def is_article_relevant(article_title: str, article_summary: str, selected_topics: list | None = None) -> bool:
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
@@ -130,3 +137,36 @@ Your entire final output MUST be structured using these exact delimiters:
         'comprehensive_summary': comprehensive_summary, 'contrarian_view': contrarian_view,
         'practical_application': practical_application, 'glossary': glossary
     }
+
+def translate_to_language(text: str, target_language: str) -> str:
+    """Translates text to the target language using AI."""
+    if target_language == 'en':
+        return text  # No translation needed for English
+    
+    api_key = os.getenv('OPENROUTER_API_KEY')
+    if not api_key:
+        print("OPENROUTER_API_KEY not found.")
+        return text
+    
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    
+    lang_names = {'fa': 'Persian/Farsi', 'ar': 'Arabic'}
+    target_name = lang_names.get(target_language, 'English')
+    
+    prompt = f"""Translate the following text to {target_name}. 
+Keep the formatting and structure intact. Only return the translated text, nothing else.
+
+Text to translate:
+{text}"""
+    
+    try:
+        response = client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            temperature=0.3
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return text

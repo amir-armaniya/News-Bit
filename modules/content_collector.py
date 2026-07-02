@@ -35,8 +35,8 @@ def fetch_recent_articles(config_path: str) -> list:
     articles = []
     print(f"Starting to fetch articles from {len(feeds_config)} feeds...")
 
-    # Cutoff for articles: last 7 days
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    # Cutoff for articles: last 30 minutes (auto-detect mode)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
 
     # --- MODIFIED: Loop through the new feed structure ---
     for feed_info in feeds_config:
