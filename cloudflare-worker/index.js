@@ -55,7 +55,7 @@ function parseRSS(xml) {
 
 // Get recent articles from feeds (per-user to avoid duplicates)
 async function fetchArticles(env, chatId) {
-  const userKey = `seen_${chatId}`;
+  const userKey = `seen_${String(chatId)}`;
   const seen = JSON.parse(await env.ARTICLES_KV.get(userKey) || "[]");
   const articles = [];
 
@@ -74,7 +74,7 @@ async function fetchArticles(env, chatId) {
     }
   }
 
-  // Keep last 200 seen articles per user
+  // Save and return only NEW articles
   await env.ARTICLES_KV.put(userKey, JSON.stringify(seen.slice(-200)));
   return articles.slice(0, 5);
 }
@@ -185,7 +185,6 @@ export default {
         const autoStatus = user.auto ? m.on : m.off;
         await sendMsg(token, chatId, `${m.auto}: ${autoStatus}`);
       } else if (data === "sendnews") {
-        await sendMsg(token, chatId, "Fetching news...");
         const articles = await fetchArticles(env, chatId);
         if (articles.length === 0) {
           await sendMsg(token, chatId, "No new articles found.");
@@ -218,7 +217,6 @@ export default {
         ]
       });
     } else if (text === "/news" || text === "news") {
-      await sendMsg(token, chatId, "Fetching news...");
       const articles = await fetchArticles(env, chatId);
       if (articles.length === 0) {
         await sendMsg(token, chatId, "No new articles found.");
@@ -247,13 +245,12 @@ export default {
         try {
           const user = JSON.parse(await env.USERS_KV.get(key.name));
           if (!user.auto) continue;
-          
+
           const articles = await fetchArticles(env, key.name);
           if (articles.length === 0) continue;
 
-          const m = MENU[user.lang] || MENU.en;
           const token = env.TELEGRAM_BOT_TOKEN;
-          
+
           for (const art of articles) {
             let text = `<b>${art.title}</b>\nSource: ${art.source}\n\n${art.desc}`;
             if (user.lang !== "en") text = await translate(env, text, user.lang);
