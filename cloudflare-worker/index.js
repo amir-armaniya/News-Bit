@@ -1,4 +1,4 @@
-// cloudflare-worker/index.js (Final Version with Correct Topic Redraw Trigger)
+// cloudflare-worker/index.js
 
 // =================================================================
 // Default Feeds Configuration (Hardcoded)
@@ -51,28 +51,25 @@ const DEFAULT_FEEDS = [
     {"name":"chartmogul","url":"https://chartmogul.com/blog/feed/", "tags": ["saas", "growth"]}
 ];
 
-
 // =================================================================
-// Helper Functions (getUserState, saveUserState, etc. - No changes needed)
+// Helper Functions
 // =================================================================
-/** @typedef {{status?: string, selected_topics?: string[], user_feeds?: Array<{name: string, url: string, tags?: string[]}>}} UserState */
 
 async function getUserState(env, chatId) {
   if (!env.STRATEGIC_RADAR_USERS) {
     console.error("CRITICAL: KV Namespace 'STRATEGIC_RADAR_USERS' is not bound.");
-    return { user_feeds: [], selected_topics: [], status: 'new' }; // Return default empty state on binding error
+    return { user_feeds: [], selected_topics: [], status: 'new' };
   }
   if (!chatId) return { user_feeds: [], selected_topics: [], status: 'new' };
   const stateStr = await env.STRATEGIC_RADAR_USERS.get(String(chatId));
   try {
     const state = stateStr ? JSON.parse(stateStr) : {};
-    // Ensure default structures exist if state is partially formed
     state.user_feeds = state.user_feeds || [];
     state.selected_topics = state.selected_topics || [];
     return state;
   } catch (e) {
     console.error("Failed to parse user state for chatId:", chatId, e);
-    return { user_feeds: [], selected_topics: [], status: 'new' }; // Return default empty state on parse error
+    return { user_feeds: [], selected_topics: [], status: 'new' };
   }
 }
 
@@ -84,6 +81,58 @@ async function saveUserState(env, chatId, state) {
   } catch (e) {
       console.error("Failed to save user state for chatId:", chatId, e);
   }
+}
+
+// Get all users for admin stats
+async function getAllUsers(env) {
+  if (!env.STRATEGIC_RADAR_USERS) return [];
+  const list = await env.STRATEGIC_RADAR_USERS.list();
+  const users = [];
+  for (const key of list.keys) {
+    const state = await env.STRATEGIC_RADAR_USERS.get(key.name);
+    if (state) {
+      try {
+        users.push({ chatId: key.name, state: JSON.parse(state) });
+      } catch (e) {
+        console.error("Failed to parse user state:", key.name, e);
+      }
+    }
+  }
+  return users;
+}
+
+// Increment usage counter
+async function incrementUsage(env, chatId) {
+  if (!env.USAGE_STATS) return;
+  const key = `usage:${chatId}`;
+  const current = await env.USAGE_STATS.get(key);
+  const count = current ? parseInt(current) + 1 : 1;
+  await env.USAGE_STATS.put(key, count.toString());
+  
+  // Also track total
+  const totalKey = 'total_analyses';
+  const total = await env.USAGE_STATS.get(totalKey);
+  await env.USAGE_STATS.put(totalKey, ((total ? parseInt(total) : 0) + 1).toString());
+}
+
+// Get usage stats for admin
+async function getUsageStats(env) {
+  if (!env.USAGE_STATS) {
+    return { total: 0, users: {} };
+  }
+  const total = await env.USAGE_STATS.get('total_analyses') || '0';
+  const list = await env.USAGE_STATS.list();
+  const userStats = {};
+  
+  for (const key of list.keys) {
+    if (key.name.startsWith('usage:')) {
+      const chatId = key.name.replace('usage:', '');
+      const count = await env.USAGE_STATS.get(key.name) || '0';
+      userStats[chatId] = parseInt(count);
+    }
+  }
+  
+  return { total: parseInt(total), users: userStats };
 }
 
 async function triggerGitHubActions(env, payload) {
@@ -148,48 +197,69 @@ async function handleRequest(request, env) {
     const body = await request.json();
     let payload = null;
     let chatId;
-    let triggerAction = true; // Default to triggering action
+    let triggerAction = true;
 
     const message = body.message || body.edited_message;
     const callbackQuery = body.callback_query;
 
-    try { // Wrap main logic in try-catch for better error handling
+    try {
         if (message) {
             chatId = message.chat.id;
-            // SECURITY CHECK: Only allow configured CHAT_ID
-            if (String(chatId) !== env.TELEGRAM_CHAT_ID) {
-                 console.warn(`Unauthorized access attempt from chatId: ${chatId}`);
-                 return new Response('Unauthorized', { status: 403 });
-            }
             const userState = await getUserState(env, chatId);
+            const userText = message.text || '';
+
+            // Handle /admin command - check if user is admin
+            if (userText.toLowerCase() === '/admin') {
+                const adminId = env.ADMIN_CHAT_ID;
+                if (adminId && String(chatId) !== adminId) {
+                    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "You don't have permission to use this command.");
+                    return new Response('OK', { status: 200 });
+                }
+                
+                // Get stats
+                const stats = await getUsageStats(env);
+                let statsText = "📊 *Usage Statistics*\n\n";
+                statsText += `Total Analyses: *${stats.total}*\n`;
+                statsText += `Active Users: *${Object.keys(stats.users).length}*\n\n`;
+                
+                if (Object.keys(stats.users).length > 0) {
+                    statsText += "📈 Per User:\n";
+                    const sortedUsers = Object.entries(stats.users).sort((a, b) => b[1] - a[1]);
+                    for (const [userId, count] of sortedUsers.slice(0, 10)) {
+                        statsText += `• User ${userId.slice(-4)}...: ${count} analyses\n`;
+                    }
+                }
+                
+                await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, statsText);
+                return new Response('OK', { status: 200 });
+            }
 
             if (userState.status === 'awaiting_feed_url') {
-                payload = { type: 'feed_submission', url: message.text || '', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics };
-                userState.status = 'active'; // Reset status after receiving URL
+                payload = { type: 'feed_submission', url: message.text || '', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics, chatId: chatId };
+                userState.status = 'active';
                 await saveUserState(env, chatId, userState);
             } else {
-                payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'کاربر', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics };
-                if (payload.text && payload.text.toLowerCase() !== '/start') {
-                    // Acknowledge non-start messages immediately if they are not feed submissions
-                    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "درخواست شما برای تحلیل دریافت شد...");
+                payload = { type: 'message', text: message.text || '', first_name: message.from ? message.from.first_name : 'User', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics, chatId: chatId };
+                if (payload.text && payload.text.toLowerCase() !== '/start' && payload.text.toLowerCase() !== '/admin') {
+                    // Track usage for every analysis request
+                    await incrementUsage(env, chatId);
+                    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "Your request for analysis has been received...");
                 }
             }
         } else if (callbackQuery) {
             chatId = callbackQuery.message.chat.id;
-             // SECURITY CHECK: Only allow configured CHAT_ID
-            if (String(chatId) !== env.TELEGRAM_CHAT_ID) {
-                 console.warn(`Unauthorized callback attempt from chatId: ${chatId}`);
-                 return new Response('Unauthorized', { status: 403 });
-            }
             const callbackData = callbackQuery.data;
             const userState = await getUserState(env, chatId);
 
-            // Acknowledge callback immediately to prevent Telegram retries
             await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id);
+
+            // Track usage for callback actions
+            if (callbackData === 'activate_quick' || callbackData === 'activate_custom' || callbackData.startsWith('confirm_add:')) {
+                await incrementUsage(env, chatId);
+            }
 
             if (callbackData.startsWith('topic_')) {
                 const topic = callbackData.split('_')[1];
-                // Ensure selected_topics is an array
                 if (!Array.isArray(userState.selected_topics)) userState.selected_topics = [];
 
                 if (userState.selected_topics.includes(topic)) {
@@ -197,54 +267,49 @@ async function handleRequest(request, env) {
                 } else if (userState.selected_topics.length < 3) {
                     userState.selected_topics.push(topic);
                 } else {
-                    await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id, "خطا: فقط می‌توانید تا ۳ موضوع انتخاب کنید.", true);
-                    triggerAction = false; // Don't trigger action if limit reached
+                    await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id, "Error: You can only select up to 3 topics.", true);
+                    triggerAction = false;
                 }
 
                 await saveUserState(env, chatId, userState);
 
                 if (triggerAction) {
-                    // **CRITICAL FIX:** Ensure payload includes necessary state for redraw
                      payload = {
                         type: 'callback',
-                        data: 'display_topics', // Explicit command for Python to redraw
+                        data: 'display_topics',
                         selected_topics: userState.selected_topics || [],
-                        user_feeds: userState.user_feeds || [] // Pass feeds too, though not directly used for topics
+                        user_feeds: userState.user_feeds || [],
+                        chatId: chatId
                     };
                 }
             } else {
-                 // Ensure user_feeds is an array before proceeding
                 if (!Array.isArray(userState.user_feeds)) userState.user_feeds = [];
 
                 if (callbackData.startsWith('remove_execute:')) {
                     const urlToRemove = callbackData.substring('remove_execute:'.length);
                     userState.user_feeds = userState.user_feeds.filter(feed => feed.url !== urlToRemove);
                     await saveUserState(env, chatId, userState);
-                    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "منبع با موفقیت حذف شد.");
-                    payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
+                    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, "Source removed successfully.");
+                    payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [], chatId: chatId };
                 } else if (callbackData.startsWith('confirm_add:')) {
                     const urlToAdd = callbackData.substring('confirm_add:'.length);
                     if (urlToAdd && !userState.user_feeds.some(feed => feed.url === urlToAdd)) {
-                        // Add with URL as name and a 'custom' tag
                         userState.user_feeds.push({ name: urlToAdd, url: urlToAdd, tags: ["custom"] });
                     }
                     await saveUserState(env, chatId, userState);
-                    payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
+                    payload = { type: 'callback', data: 'display_feeds', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [], chatId: chatId };
                 } else if (callbackData === 'add_feed') {
-                    userState.status = 'awaiting_feed_url'; // Set status to wait for URL
+                    userState.status = 'awaiting_feed_url';
                     await saveUserState(env, chatId, userState);
-                    // Trigger Python to send the prompt message
-                    payload = { type: 'callback', data: 'add_feed', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
+                    payload = { type: 'callback', data: 'add_feed', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [], chatId: chatId };
                 } else if (callbackData === 'topics_done') {
-                    // Initialize default feeds only if the list is empty
                     if (userState.user_feeds.length === 0) {
-                        userState.user_feeds = DEFAULT_FEEDS.map(feed => ({...feed})); // Use a copy to avoid mutation issues
+                        userState.user_feeds = DEFAULT_FEEDS.map(feed => ({...feed}));
                         await saveUserState(env, chatId, userState);
                     }
-                    payload = { type: 'callback', data: 'topics_done', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
+                    payload = { type: 'callback', data: 'topics_done', user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [], chatId: chatId };
                 } else {
-                    // Generic handler for other simple callbacks like 'display_feeds', 'cancel_add', 'remove_feed', 'feeds_done'
-                    payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [] };
+                    payload = { type: 'callback', data: callbackData, user_feeds: userState.user_feeds, selected_topics: userState.selected_topics || [], chatId: chatId };
                 }
             }
         } else {
@@ -262,11 +327,10 @@ async function handleRequest(request, env) {
 
     } catch (e) {
       console.error('Critical error in worker handleRequest:', e);
-      // Attempt to notify user if possible
       const potentialChatId = message?.chat?.id || callbackQuery?.message?.chat?.id;
-      if (potentialChatId && String(potentialChatId) === env.TELEGRAM_CHAT_ID) {
+      if (potentialChatId) {
            try {
-                await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, potentialChatId, "یک خطای بحرانی در پردازش درخواست شما رخ داده است.");
+                await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, potentialChatId, "A critical error occurred while processing your request.");
            } catch (notifyError) {
                 console.error('Failed to send error notification:', notifyError);
            }
@@ -281,7 +345,6 @@ async function handleRequest(request, env) {
 
 export default {
   async fetch(request, env) {
-      // It's crucial that handleRequest is awaited and its Response returned.
       return await handleRequest(request, env);
   }
 };

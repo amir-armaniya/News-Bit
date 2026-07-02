@@ -6,7 +6,7 @@ import socket
 import modules.content_collector
 import modules.ai_processor
 import modules.telegram_sender
-from modules import memory_manager # Import the new memory manager
+from modules import memory_manager
 
 load_dotenv()
 socket.setdefaulttimeout(20)
@@ -26,9 +26,7 @@ async def main():
 
     if not all_articles:
         print("No new articles found. Exiting.")
-        # بازخورد به کاربر: هیچ مقاله جدیدی پیدا نشد
-        # نام تابع را با توجه به ماژول خودتان اصلاح کنید
-        await modules.telegram_sender.send_text_to_telegram("هیچ مقاله جدیدی برای تحلیل پیدا نشد.")
+        await modules.telegram_sender.send_text_to_telegram("No new articles found for analysis.")
         return
 
     print(f"Fetched {len(all_articles)} total articles. Starting relevance filtering...")
@@ -38,7 +36,7 @@ async def main():
     for i, article in enumerate(all_articles, 1):
         print(f"Filtering article {i}/{len(all_articles)}: {article['title'][:70]}...")
         
-        # تلاش برای بررسی مرتبط بودن مقاله با مدیریت خطا
+        # Try to check article relevance with error handling
         max_retries = 3
         for retry in range(max_retries):
             try:
@@ -51,23 +49,21 @@ async def main():
                     print("   -> RELEVANT")
                 else:
                     print("   -> SKIPPED (Not Relevant)")
-                break  # اگر موفق بود، از حلقه تلاش خارج شو
+                break
             except Exception as e:
                 if "429" in str(e) and retry < max_retries - 1:
                     print(f"   -> Rate limit hit. Waiting 60 seconds...")
-                    await asyncio.sleep(60)  # صبر یک دقیقه و تلاش مجدد
+                    await asyncio.sleep(60)
                 else:
                     print(f"   -> Error: {e}")
                     break
         
-        # تأخیر ۳ ثانیه‌ای برای رعایت محدودیت ۲۰ درخواست در دقیقه
+        # 3-second delay for rate limiting (20 requests per minute)
         await asyncio.sleep(3)
     
     if not relevant_articles:
         print("No relevant articles found after filtering. Exiting.")
-        # بازخورد به کاربر: مقالات پیدا شدند اما هیچ‌کدام مرتبط نبودند
-        # نام تابع را با توجه به ماژول خودتان اصلاح کنید
-        await modules.telegram_sender.send_text_to_telegram("مقالات جدید پیدا شدند، اما هیچ‌کدام با حوزه کاری شما مرتبط نبودند.")
+        await modules.telegram_sender.send_text_to_telegram("New articles were found, but none were relevant to your work area.")
         return
         
     print(f"\nFound {len(relevant_articles)} relevant articles. Processing...")
@@ -75,7 +71,7 @@ async def main():
     for i, article in enumerate(relevant_articles, 1):
         print(f"--- Processing article {i}/{len(relevant_articles)}: {article['title']} ---")
         
-        analysis_dict = modules.ai_processor.process_article_in_persian(
+        analysis_dict = modules.ai_processor.process_article_in_english(
             article['title'], article['summary'], article['link']
         )
 
@@ -85,12 +81,10 @@ async def main():
         else:
             print(f"Warning: Failed to analyze article: {article['title']}. Skipping.")
 
-        # تأخیر بیشتر برای تحلیل مقالات (چون از مدل قدرتمندتری استفاده می‌کند)
+        # Longer delay for article analysis (using more powerful model)
         await asyncio.sleep(8)
         
-    # بازخورد به کاربر: پردازش مقالات مرتبط با موفقیت انجام شد
-    # نام تابع را با توجه به ماژول خودتان اصلاح کنید
-    await modules.telegram_sender.send_text_to_telegram(f"پردازش {len(relevant_articles)} مقاله مرتبط با موفقیت انجام شد.")
+    await modules.telegram_sender.send_text_to_telegram(f"Successfully processed {len(relevant_articles)} relevant articles.")
     print("--- All articles processed. Mission complete. ---")
 
 if __name__ == "__main__":

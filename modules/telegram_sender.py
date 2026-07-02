@@ -2,15 +2,19 @@ import os
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
-async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bool:
+def get_chat_id(chat_id=None):
+    """Get chat_id from parameter or environment"""
+    return chat_id or os.getenv('TELEGRAM_CHAT_ID')
+
+async def send_article_analysis(analysis_dict: dict, buttons: list = None, chat_id: str = None) -> bool:
     token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    target_chat_id = get_chat_id(chat_id)
     
     if not token:
         print("Critical error: TELEGRAM_BOT_TOKEN environment variable not found.")
         return False
-    if not chat_id:
-        print("Critical error: TELEGRAM_CHAT_ID environment variable not found.")
+    if not target_chat_id:
+        print("Critical error: No chat_id provided for sending message.")
         return False
     
     # Get fields from analysis_dict
@@ -22,7 +26,7 @@ async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bo
     link = analysis_dict.get('link', '')
     
     def escape_markdown_v2(text: str) -> str:
-        # Escape special characters for MarkdownV2: _ * [ ] ( ) ~ ` > # + - = | { } . !
+        # Escape special characters for MarkdownV2
         chars_to_escape = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
         for char in chars_to_escape:
             text = text.replace(char, f'\\{char}')
@@ -36,21 +40,20 @@ async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bo
     
     message = f"""*__{title_esc}__*
 
-*خلاصه جامع:*
+*Comprehensive Summary:*
 {comprehensive_summary_esc}
 
-*دیدگاه مخالف:*
+*Contrarian View:*
 {contrarian_view_esc}
 
-*کاربرد عملی برای شما:*
+*Practical Application for You:*
 {practical_application_esc}
 
-*واژه‌نامه:*
+*Glossary:*
 {glossary_esc}
 
-[لینک منبع]({link})"""
+[Source Link]({link})"""
     
-    # --- NEW LOGIC FOR BUTTONS ---
     reply_markup = None
     if buttons:
         keyboard = [
@@ -64,50 +67,27 @@ async def send_article_analysis(analysis_dict: dict, buttons: list = None) -> bo
     async with bot:
         try:
             await bot.send_message(
-                chat_id=chat_id,
+                chat_id=target_chat_id,
                 text=message,
                 parse_mode='MarkdownV2',
                 reply_markup=reply_markup
             )
-            print("Article analysis sent to Telegram successfully.")
+            print(f"Article analysis sent to chat_id {target_chat_id} successfully.")
             return True
         except TelegramError as e:
             print(f"Error sending to Telegram: {e}")
             return False
-async def send_audio_file(filepath: str) -> bool:
-    """Sends an audio file to the specified chat."""
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
 
-    if not token or not chat_id:
-        print("Critical error: Telegram credentials not found for sending audio.")
-        return False
-
-    bot = Bot(token=token)
-    async with bot:
-        try:
-            with open(filepath, 'rb') as audio_file:
-                await bot.send_audio(chat_id=chat_id, audio=audio_file)
-            print("Podcast sent to Telegram successfully.")
-            return True
-        except TelegramError as e:
-            print(f"Error sending audio to Telegram: {e}")
-            return False
-        except FileNotFoundError:
-            print(f"Error: Audio file not found at {filepath}")
-            return False
-
-
-async def send_text_to_telegram(text: str) -> bool:
+async def send_text_to_telegram(text: str, chat_id: str = None) -> bool:
     """Sends a simple text message to the specified chat."""
     token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    target_chat_id = get_chat_id(chat_id)
     
     if not token:
         print("Critical error: TELEGRAM_BOT_TOKEN environment variable not found.")
         return False
-    if not chat_id:
-        print("Critical error: TELEGRAM_CHAT_ID environment variable not found.")
+    if not target_chat_id:
+        print("Critical error: No chat_id provided for sending message.")
         return False
     
     def escape_markdown_v2(text: str) -> str:
@@ -122,8 +102,8 @@ async def send_text_to_telegram(text: str) -> bool:
     
     async with bot:
         try:
-            await bot.send_message(chat_id=chat_id, text=escaped_text, parse_mode='MarkdownV2')
-            print("Text message sent to Telegram successfully.")
+            await bot.send_message(chat_id=target_chat_id, text=escaped_text, parse_mode='MarkdownV2')
+            print(f"Text message sent to chat_id {target_chat_id} successfully.")
             return True
         except TelegramError as e:
             print(f"Error sending text to Telegram: {e}")
@@ -132,9 +112,9 @@ async def send_text_to_telegram(text: str) -> bool:
 async def send_text_with_buttons(text: str, buttons: list, chat_id: str = None) -> bool:
     """Sends a simple text message with an inline keyboard."""
     token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = chat_id or os.getenv('TELEGRAM_CHAT_ID')
+    target_chat_id = get_chat_id(chat_id)
     
-    if not token or not chat_id:
+    if not token or not target_chat_id:
         print("Critical error: Telegram credentials not found.")
         return False
 
@@ -155,8 +135,8 @@ async def send_text_with_buttons(text: str, buttons: list, chat_id: str = None) 
     bot = Bot(token=token)
     async with bot:
         try:
-            await bot.send_message(chat_id=chat_id, text=escaped_text, reply_markup=reply_markup, parse_mode='MarkdownV2')
-            print("Message with buttons sent successfully.")
+            await bot.send_message(chat_id=target_chat_id, text=escaped_text, reply_markup=reply_markup, parse_mode='MarkdownV2')
+            print(f"Message with buttons sent to chat_id {target_chat_id} successfully.")
             return True
         except TelegramError as e:
             print(f"Error sending message with buttons: {e}")
