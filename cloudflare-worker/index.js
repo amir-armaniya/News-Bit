@@ -56,12 +56,12 @@ const DEFAULT_FEEDS = [
 // =================================================================
 
 async function getUserState(env, chatId) {
-  if (!env.STRATEGIC_RADAR_USERS) {
-    console.error("CRITICAL: KV Namespace 'STRATEGIC_RADAR_USERS' is not bound.");
+  if (!env.NEWSBIT_USERS) {
+    console.error("CRITICAL: KV Namespace 'NEWSBIT_USERS' is not bound.");
     return { user_feeds: [], selected_topics: [], status: 'new' };
   }
   if (!chatId) return { user_feeds: [], selected_topics: [], status: 'new' };
-  const stateStr = await env.STRATEGIC_RADAR_USERS.get(String(chatId));
+  const stateStr = await env.NEWSBIT_USERS.get(String(chatId));
   try {
     const state = stateStr ? JSON.parse(stateStr) : {};
     state.user_feeds = state.user_feeds || [];
@@ -74,10 +74,10 @@ async function getUserState(env, chatId) {
 }
 
 async function saveUserState(env, chatId, state) {
-  if (!env.STRATEGIC_RADAR_USERS) return;
+  if (!env.NEWSBIT_USERS) return;
   if (!chatId) return;
   try {
-    await env.STRATEGIC_RADAR_USERS.put(String(chatId), JSON.stringify(state));
+    await env.NEWSBIT_USERS.put(String(chatId), JSON.stringify(state));
   } catch (e) {
       console.error("Failed to save user state for chatId:", chatId, e);
   }
@@ -85,11 +85,11 @@ async function saveUserState(env, chatId, state) {
 
 // Get all users for admin stats
 async function getAllUsers(env) {
-  if (!env.STRATEGIC_RADAR_USERS) return [];
-  const list = await env.STRATEGIC_RADAR_USERS.list();
+  if (!env.NEWSBIT_USERS) return [];
+  const list = await env.NEWSBIT_USERS.list();
   const users = [];
   for (const key of list.keys) {
-    const state = await env.STRATEGIC_RADAR_USERS.get(key.name);
+    const state = await env.NEWSBIT_USERS.get(key.name);
     if (state) {
       try {
         users.push({ chatId: key.name, state: JSON.parse(state) });
@@ -345,14 +345,14 @@ async function handleRequest(request, env) {
 
 async function handleScheduled(env) {
   console.log("=== CRON TRIGGER: Auto News Detection ===");
-  
+
   // Get all users who have auto_mode enabled
-  const list = await env.STRATEGIC_RADAR_USERS.list();
+  const list = await env.NEWSBIT_USERS.list();
   const autoUsers = [];
-  
+
   for (const key of list.keys) {
     try {
-      const state = JSON.parse(await env.STRATEGIC_RADAR_USERS.get(key.name));
+      const state = JSON.parse(await env.NEWSBIT_USERS.get(key.name));
       if (state && state.auto_mode === true) {
         autoUsers.push({ chatId: key.name, state });
       }

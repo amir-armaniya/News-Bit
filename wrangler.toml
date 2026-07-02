@@ -7,8 +7,8 @@ compatibility_date = "2024-01-01"
 crons = ["*/30 * * * *"]
 
 [[kv_namespaces]]
-binding = "STRATEGIC_RADAR_USERS"
-id = "1cfdff76a7a04f10a9d4a305f4102431"
+binding = "NEWSBIT_USERS"
+id = "de165cf7c71a4c6d80a8a095b9034d7e"
 
 [[kv_namespaces]]
 binding = "PROCESSED_ARTICLES"
