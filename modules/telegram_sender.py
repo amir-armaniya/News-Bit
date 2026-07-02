@@ -165,14 +165,19 @@ async def send_text_with_buttons(text: str, buttons: list, chat_id: str = None) 
             return False
 
 async def send_settings_menu(chat_id: str = None) -> bool:
-    """Sends the settings menu with language and auto mode options."""
-    current_lang = settings_manager.get_language()
-    auto_mode = settings_manager.is_auto_mode()
+    """Sends the settings menu with language and auto mode options for a specific user."""
+    target_chat_id = get_chat_id(chat_id)
+    if not target_chat_id:
+        print("Critical error: No chat_id provided for settings menu.")
+        return False
     
-    # Get menu text in current language
-    settings_text = settings_manager.get_menu_text('settings')
-    language_text = settings_manager.get_menu_text('language')
-    auto_mode_text = settings_manager.get_menu_text('auto_mode')
+    current_lang = settings_manager.get_language(target_chat_id)
+    auto_mode = settings_manager.is_auto_mode(target_chat_id)
+    
+    # Get menu text in user's language
+    settings_text = settings_manager.get_menu_text('settings', target_chat_id)
+    language_text = settings_manager.get_menu_text('language', target_chat_id)
+    auto_mode_text = settings_manager.get_menu_text('auto_mode', target_chat_id)
     
     # Auto mode status
     auto_status = "ON" if auto_mode else "OFF"
@@ -200,4 +205,4 @@ Select language:"""
         ]
     ]
     
-    return await send_text_with_buttons(text, buttons, chat_id)
+    return await send_text_with_buttons(text, buttons, target_chat_id)

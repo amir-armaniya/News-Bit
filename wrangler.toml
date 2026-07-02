@@ -2,6 +2,14 @@ name = "news-bit-worker"
 main = "cloudflare-worker/index.js"
 compatibility_date = "2024-01-01"
 
+# Cron Trigger: every 30 minutes
+[triggers]
+crons = ["*/30 * * * *"]
+
 [[kv_namespaces]]
 binding = "STRATEGIC_RADAR_USERS"
 id = "1cfdff76a7a04f10a9d4a305f4102431"
+
+[[kv_namespaces]]
+binding = "PROCESSED_ARTICLES"
+id = "your-processed-articles-kv-id"

@@ -20,34 +20,34 @@ Built on **GitHub Actions** (free CI/CD), **Cloudflare Workers** (serverless bri
 User (Telegram)
     |
     v
-Cloudflare Worker (bridge + KV state)
-    |
-    v
-GitHub Actions
-    ├── on_demand_analyzer.py  (interactive: onboarding, customization, URL analysis)
-    └── main.py                (auto mode: every 30 minutes + manual run)
+Cloudflare Worker
+    ├── fetch (webhook) ──→ GitHub Actions (manual/on-demand)
+    └── scheduled (cron) ──→ Direct processing (auto mode)
     |
     v
 Telegram (formatted Markdown output)
 ```
 
-1. **Cloudflare Worker** receives Telegram webhooks, manages user state (topics, feeds) in KV storage, and triggers the appropriate GitHub Actions workflow
-2. **`on_demand_analyzer.py`** handles the full interactive user journey — onboarding flow, topic/feed customization menus, and on-demand link analysis
-3. **`main.py`** runs in auto mode (every 30 minutes) or single-run mode to collect articles from RSS feeds, filter by relevance, and generate strategic analyses
+1. **Cloudflare Worker** handles two modes:
+   - **Webhook**: Receives Telegram updates, triggers GitHub Actions for manual analysis
+   - **Cron (every 30 min)**: Automatically fetches, filters, and sends news to users with auto_mode enabled
+2. **`main.py`** runs manually for on-demand analysis (triggered by GitHub Actions)
+3. **KV Storage**: Stores user settings, processed articles, and usage stats
 
 ## Auto Mode & Language Settings
 
-### Auto Mode
-- Automatically checks for new articles every 30 minutes
-- Processes and sends relevant news without manual intervention
-- Can be toggled on/off via Telegram settings menu
+### Auto Mode (Cloudflare Cron)
+- Runs every 30 minutes automatically
+- Only processes for users with `auto_mode: true` in their settings
+- No cold start delay (unlike GitHub Actions)
+- Free tier: 10,000 requests/day
 
 ### Multi-Language Support
 - **Farsi (فارسی)** — Full translation of news and menu
 - **Arabic (العربية)** — Full translation of news and menu
 - **English** — Default language
 
-Language settings are synchronized across:
+Language settings are per-user (based on Telegram chat_id) and synchronized across:
 - News content translation
 - Telegram bot menu labels
 - Section headers in messages

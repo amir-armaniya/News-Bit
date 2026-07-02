@@ -340,11 +340,347 @@ async function handleRequest(request, env) {
 }
 
 // =================================================================
+// Cron Handler: Auto News Detection (every 30 minutes)
+// =================================================================
+
+async function handleScheduled(env) {
+  console.log("=== CRON TRIGGER: Auto News Detection ===");
+  
+  // Get all users who have auto_mode enabled
+  const list = await env.STRATEGIC_RADAR_USERS.list();
+  const autoUsers = [];
+  
+  for (const key of list.keys) {
+    try {
+      const state = JSON.parse(await env.STRATEGIC_RADAR_USERS.get(key.name));
+      if (state && state.auto_mode === true) {
+        autoUsers.push({ chatId: key.name, state });
+      }
+    } catch (e) {
+      console.error("Failed to parse user state:", key.name, e);
+    }
+  }
+  
+  if (autoUsers.length === 0) {
+    console.log("No users with auto_mode enabled. Skipping.");
+    return;
+  }
+  
+  console.log(`Found ${autoUsers.length} users with auto_mode enabled.`);
+  
+  // Fetch articles from all feeds
+  const allArticles = await fetchAllArticles(env);
+  
+  if (allArticles.length === 0) {
+    console.log("No new articles found.");
+    return;
+  }
+  
+  console.log(`Fetched ${allArticles.length} total articles.`);
+  
+  // Process for each user with auto_mode
+  for (const user of autoUsers) {
+    try {
+      await processForUser(env, user.chatId, user.state, allArticles);
+    } catch (e) {
+      console.error(`Error processing for user ${user.chatId}:`, e);
+    }
+  }
+  
+  console.log("=== Cron job completed ===");
+}
+
+async function fetchAllArticles(env) {
+  const processedKey = "processed_links";
+  const processedLinksStr = await env.PROCESSED_ARTICLES.get(processedKey);
+  const processedLinks = processedLinksStr ? JSON.parse(processedLinksStr) : [];
+  
+  const articles = [];
+  const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes ago
+  
+  for (const feed of DEFAULT_FEEDS) {
+    try {
+      const response = await fetch(feed.url, {
+        headers: { 'User-Agent': 'NewsBit-Bot/1.0' }
+      });
+      const text = await response.text();
+      
+      // Simple RSS parsing (extract items)
+      const items = parseRSSItems(text);
+      
+      for (const item of items) {
+        if (processedLinks.includes(item.link)) continue;
+        
+        // Check if article is recent (within 30 minutes)
+        if (item.pubDate && new Date(item.pubDate).getTime() >= cutoff) {
+          articles.push({
+            title: item.title,
+            link: item.link,
+            summary: item.summary || '',
+            source: feed.name
+          });
+          processedLinks.push(item.link);
+        }
+      }
+    } catch (e) {
+      console.error(`Error fetching feed ${feed.name}:`, e);
+    }
+  }
+  
+  // Save processed links (keep last 1000)
+  const trimmed = processedLinks.slice(-1000);
+  await env.PROCESSED_ARTICLES.put(processedKey, JSON.stringify(trimmed));
+  
+  return articles;
+}
+
+function parseRSSItems(xml) {
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+  let match;
+  
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const itemXml = match[1];
+    const title = extractTag(itemXml, 'title');
+    const link = extractTag(itemXml, 'link');
+    const summary = extractTag(itemXml, 'description');
+    const pubDate = extractTag(itemXml, 'pubDate');
+    
+    if (title && link) {
+      items.push({ title, link, summary, pubDate });
+    }
+  }
+  
+  return items;
+}
+
+function extractTag(xml, tag) {
+  const regex = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`, 'is');
+  const match = xml.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+async function processForUser(env, chatId, userState, allArticles) {
+  const language = userState.language || 'en';
+  const selectedTopics = userState.selected_topics || [];
+  
+  // Filter articles by relevance using AI
+  const relevantArticles = [];
+  
+  for (const article of allArticles.slice(0, 10)) { // Limit to 10 articles
+    const isRelevant = await checkRelevance(env, article, selectedTopics);
+    if (isRelevant) {
+      relevantArticles.push(article);
+    }
+  }
+  
+  if (relevantArticles.length === 0) {
+    console.log(`No relevant articles for user ${chatId}`);
+    return;
+  }
+  
+  // Process each relevant article
+  for (const article of relevantArticles.slice(0, 3)) { // Limit to 3 articles per user
+    const analysis = await analyzeArticle(env, article);
+    
+    if (analysis) {
+      // Translate if needed
+      let translatedAnalysis = analysis;
+      if (language !== 'en') {
+        translatedAnalysis = await translateAnalysis(env, analysis, language);
+      }
+      
+      // Send to user
+      await sendAnalysisToUser(env, chatId, translatedAnalysis, language);
+    }
+  }
+}
+
+async function checkRelevance(env, article, selectedTopics) {
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) return true; // Default to relevant if no API key
+  
+  const topicStr = selectedTopics.length > 0 
+    ? `Focus on these topics: ${selectedTopics.join(', ')}`
+    : "Focus on SaaS, FinTech, AI, product management, funding, team building";
+  
+  const prompt = `Is this article relevant? ${topicStr}
+Title: "${article.title}"
+Summary: "${article.summary}"
+Answer with only 'YES' or 'NO'.`;
+  
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-20b:free",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 10,
+        temperature: 0.1
+      })
+    });
+    
+    const data = await response.json();
+    const answer = data.choices?.[0]?.message?.content?.trim()?.toUpperCase() || '';
+    return answer.includes('YES');
+  } catch (e) {
+    console.error("Relevance check failed:", e);
+    return true;
+  }
+}
+
+async function analyzeArticle(env, article) {
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+  
+  const prompt = `Analyze this news article and provide:
+1. Comprehensive Summary
+2. Contrarian View  
+3. Practical Application
+4. Glossary (key terms)
+
+Title: "${article.title}"
+Summary: "${article.summary}"
+
+Format your response with these sections exactly:
+[Comprehensive Summary]
+[Contrarian View]
+[Practical Application]
+[Glossary]`;
+  
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-20b:free",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 1000
+      })
+    });
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse the response
+    const sections = content.split(/\[(.*?)\]/g).filter(Boolean);
+    const analysis = {};
+    
+    for (let i = 0; i < sections.length; i += 2) {
+      const key = sections[i].toLowerCase().replace(/\s+/g, '_');
+      const value = sections[i + 1]?.trim() || '';
+      analysis[key] = value;
+    }
+    
+    return {
+      title: article.title,
+      link: article.link,
+      summary: analysis['comprehensive_summary'] || article.summary,
+      contrarian: analysis['contrarian_view'] || '',
+      practical: analysis['practical_application'] || '',
+      glossary: analysis['glossary'] || ''
+    };
+  } catch (e) {
+    console.error("Analysis failed:", e);
+    return null;
+  }
+}
+
+async function translateAnalysis(env, analysis, targetLang) {
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) return analysis;
+  
+  const langNames = { 'fa': 'Persian/Farsi', 'ar': 'Arabic' };
+  const targetName = langNames[targetLang] || 'English';
+  
+  const textToTranslate = `Title: ${analysis.title}
+Summary: ${analysis.summary}
+Contrarian: ${analysis.contrarian}
+Practical: ${analysis.practical}
+Glossary: ${analysis.glossary}`;
+  
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-20b:free",
+        messages: [{
+          role: "user",
+          content: `Translate to ${targetName}. Keep format:\n${textToTranslate}`
+        }],
+        max_tokens: 2000,
+        temperature: 0.3
+      })
+    });
+    
+    const data = await response.json();
+    const translated = data.choices?.[0]?.message?.content || textToTranslate;
+    
+    // Parse translated content back
+    const lines = translated.split('\n');
+    return {
+      title: lines.find(l => l.startsWith('Title:'))?.replace('Title:', '')?.trim() || analysis.title,
+      link: analysis.link,
+      summary: lines.find(l => l.startsWith('Summary:'))?.replace('Summary:', '')?.trim() || analysis.summary,
+      contrarian: lines.find(l => l.startsWith('Contrarian:'))?.replace('Contrarian:', '')?.trim() || analysis.contrarian,
+      practical: lines.find(l => l.startsWith('Practical:'))?.replace('Practical:', '')?.trim() || analysis.practical,
+      glossary: lines.find(l => l.startsWith('Glossary:'))?.replace('Glossary:', '')?.trim() || analysis.glossary
+    };
+  } catch (e) {
+    console.error("Translation failed:", e);
+    return analysis;
+  }
+}
+
+async function sendAnalysisToUser(env, chatId, analysis, language) {
+  const langConfig = {
+    'fa': { summary: 'خلاصه جامع', contrarian: 'دیدگاه متفاوت', practical: 'کاربرد عملی', glossary: 'واژه‌نامه' },
+    'ar': { summary: 'ملخص شامل', contrarian: 'وجهة نظر معارضة', practical: 'التطبيق العملي', glossary: 'المسرد' },
+    'en': { summary: 'Comprehensive Summary', contrarian: 'Contrarian View', practical: 'Practical Application', glossary: 'Glossary' }
+  };
+  
+  const headers = langConfig[language] || langConfig['en'];
+  
+  const text = `*__${analysis.title}__*
+
+*${headers.summary}:*
+${analysis.summary}
+
+*${headers.contrarian}:*
+${analysis.contrarian}
+
+*${headers.practical}:*
+${analysis.practical}
+
+*${headers.glossary}:*
+${analysis.glossary}
+
+[Source Link](${analysis.link})`;
+  
+  await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, text);
+}
+
+// =================================================================
 // Main Exported Handler
 // =================================================================
 
 export default {
   async fetch(request, env) {
       return await handleRequest(request, env);
+  },
+  
+  async scheduled(event, env, ctx) {
+      ctx.waitUntil(handleScheduled(env));
   }
 };
