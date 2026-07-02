@@ -3,9 +3,9 @@ import os
 from openai import OpenAI
 
 # Fast and low-cost model for initial filtering
-FAST_MODEL = "google/gemma-3-12b-it:free" 
+FAST_MODEL = "openai/gpt-oss-20b:free"
 # Powerful model for deep strategic analysis
-POWERFUL_MODEL = "google/gemma-3-27b-it:free"
+POWERFUL_MODEL = "openai/gpt-oss-20b:free"
 
 def is_article_relevant(article_title: str, article_summary: str, selected_topics: list | None = None) -> bool:
     api_key = os.getenv('OPENROUTER_API_KEY')
