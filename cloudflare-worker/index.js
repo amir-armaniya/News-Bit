@@ -87,12 +87,14 @@ async function saveUserState(env, chatId, state) {
 }
 
 async function triggerGitHubActions(env, payload) {
-  const GITHUB_API_URL = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/weekly_podcast.yml/dispatches`;
+  const workflowFile = env.GITHUB_WORKFLOW || 'news-bit.yml';
+  const gitBranch = env.GITHUB_BRANCH || 'main';
+  const GITHUB_API_URL = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflowFile}/dispatches`;
   try {
       const response = await fetch(GITHUB_API_URL, {
         method: 'POST',
         headers: { 'Authorization': `token ${env.GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json', 'User-Agent': 'Cloudflare-Worker' },
-        body: JSON.stringify({ ref: 'feature/interactive-worker', inputs: { on_demand_input: JSON.stringify(payload) } })
+        body: JSON.stringify({ ref: gitBranch, inputs: { on_demand_input: JSON.stringify(payload) } })
       });
       if (response.status !== 204) {
         console.error(`Failed to trigger GitHub Actions: ${response.status} ${await response.text()}`);

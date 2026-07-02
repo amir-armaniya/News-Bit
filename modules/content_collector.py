@@ -94,7 +94,6 @@ def fetch_recent_articles(config_path: str) -> list:
 
     print(f"\nFinished fetching. Total new articles found: {len(articles)}")
     return articles
-    return articles
 
 def fetch_sample_articles_from_feeds(feeds_config: list) -> list:
     """
