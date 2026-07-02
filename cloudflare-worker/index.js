@@ -53,20 +53,20 @@ function parseRSS(xml) {
   return items;
 }
 
-// Get recent articles from feeds
-async function fetchArticles(env, processedKey = "processed") {
-  const processed = JSON.parse(await env.ARTICLES_KV.get(processedKey) || "[]");
+// Get recent articles from feeds (per-user to avoid duplicates)
+async function fetchArticles(env, chatId) {
+  const userKey = `seen_${chatId}`;
+  const seen = JSON.parse(await env.ARTICLES_KV.get(userKey) || "[]");
   const articles = [];
-  const cutoff = Date.now() - 30 * 60 * 1000;
 
   for (const feed of DEFAULT_FEEDS) {
     try {
       const res = await fetch(feed.url, { headers: { "User-Agent": "NewsBit/1.0" } });
       const xml = await res.text();
       for (const item of parseRSS(xml)) {
-        if (!processed.includes(item.link)) {
+        if (!seen.includes(item.link)) {
           articles.push({ ...item, source: feed.name });
-          processed.push(item.link);
+          seen.push(item.link);
         }
       }
     } catch (e) {
@@ -74,8 +74,9 @@ async function fetchArticles(env, processedKey = "processed") {
     }
   }
 
-  await env.ARTICLES_KV.put(processedKey, JSON.stringify(processed.slice(-500)));
-  return articles.slice(0, 5); // Limit to 5 articles
+  // Keep last 200 seen articles per user
+  await env.ARTICLES_KV.put(userKey, JSON.stringify(seen.slice(-200)));
+  return articles.slice(0, 5);
 }
 
 // AI analysis
@@ -185,7 +186,7 @@ export default {
         await sendMsg(token, chatId, `${m.auto}: ${autoStatus}`);
       } else if (data === "sendnews") {
         await sendMsg(token, chatId, "Fetching news...");
-        const articles = await fetchArticles(env);
+        const articles = await fetchArticles(env, chatId);
         if (articles.length === 0) {
           await sendMsg(token, chatId, "No new articles found.");
         } else {
@@ -218,7 +219,7 @@ export default {
       });
     } else if (text === "/news" || text === "news") {
       await sendMsg(token, chatId, "Fetching news...");
-      const articles = await fetchArticles(env);
+      const articles = await fetchArticles(env, chatId);
       if (articles.length === 0) {
         await sendMsg(token, chatId, "No new articles found.");
       } else {
@@ -247,7 +248,7 @@ export default {
           const user = JSON.parse(await env.USERS_KV.get(key.name));
           if (!user.auto) continue;
           
-          const articles = await fetchArticles(env);
+          const articles = await fetchArticles(env, key.name);
           if (articles.length === 0) continue;
 
           const m = MENU[user.lang] || MENU.en;
