@@ -1,14 +1,11 @@
-name: News Bit Pipeline
+name: News Bit - On-Demand Analysis
 
 on:
   workflow_dispatch:
     inputs:
       on_demand_input:
         description: 'JSON payload for on-demand analysis'
-        required: false
-        default: ''
-  schedule:
-    - cron: '0 5 * * 6'  # Every Saturday at 5:00 UTC
+        required: true
 
 jobs:
   run:
@@ -18,6 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: main  # Always use main branch
           token: ${{ secrets.G_TOKEN }}
 
       - name: Set up Python
@@ -29,18 +27,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run on-demand analyzer
-        if: ${{ github.event.inputs.on_demand_input != '' }}
         env:
           ON_DEMAND_INPUT: ${{ github.event.inputs.on_demand_input }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python on_demand_analyzer.py
-
-      - name: Run weekly pipeline
-        if: ${{ github.event.inputs.on_demand_input == '' }}
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
