@@ -1,122 +1,79 @@
-# News Bit - Auto News Detective
+# News Bit
 
-An automated news intelligence pipeline that collects, filters, and analyzes articles using AI, delivering personalized strategic insights through an interactive Telegram bot.
-
-Built on **GitHub Actions** (free CI/CD), **Cloudflare Workers** (serverless bridge), and **OpenRouter** (AI APIs).
+Telegram bot that fetches and sends news from RSS feeds with AI-powered analysis and translation.
 
 ## Features
 
-- **Interactive Telegram Bot** — Guided onboarding, topic selection, and dynamic feed management via inline buttons
-- **Auto Mode** — Automatically detects and sends important news every 30 minutes
-- **Multi-Language Support** — Translate news to Farsi, Arabic, or English with synchronized menu
-- **AI-Powered Filtering** — A fast, low-cost model pre-screens articles for relevance before expensive deep analysis
-- **Deep Strategic Analysis** — Multi-part insights including summary, contrarian viewpoint, practical application, and glossary
-- **Web Scraping** — Extracts content from any webpage, even without RSS support
-- **Persistent Memory** — Tracks processed articles in `processed_articles.jsonl` to prevent duplicates
+- **Telegram Bot** — Settings menu, language selection, auto mode toggle
+- **Auto Mode** — Sends news every 30 minutes via Cloudflare Cron
+- **Multi-Language** — Farsi, Arabic, English (menu + news translation)
+- **AI Analysis** — Summarizes articles using OpenRouter API
+- **Per-User Settings** — Each user has their own language and preferences
 
 ## Architecture
 
 ```
-User (Telegram)
-    |
-    v
-Cloudflare Worker
-    ├── fetch (webhook) ──→ GitHub Actions (manual/on-demand)
-    └── scheduled (cron) ──→ Direct processing (auto mode)
-    |
-    v
-Telegram (formatted Markdown output)
+Telegram User
+    ↓
+Cloudflare Worker (webhook + cron)
+    ↓
+RSS Feeds → AI Analysis → Translation → Telegram
 ```
 
-1. **Cloudflare Worker** handles two modes:
-   - **Webhook**: Receives Telegram updates, triggers GitHub Actions for manual analysis
-   - **Cron (every 30 min)**: Automatically fetches, filters, and sends news to users with auto_mode enabled
-2. **`main.py`** runs manually for on-demand analysis (triggered by GitHub Actions)
-3. **KV Storage**: Stores user settings, processed articles, and usage stats
-
-## Auto Mode & Language Settings
-
-### Auto Mode (Cloudflare Cron)
-- Runs every 30 minutes automatically
-- Only processes for users with `auto_mode: true` in their settings
-- No cold start delay (unlike GitHub Actions)
-- Free tier: 10,000 requests/day
-
-### Multi-Language Support
-- **Farsi (فارسی)** — Full translation of news and menu
-- **Arabic (العربية)** — Full translation of news and menu
-- **English** — Default language
-
-Language settings are per-user (based on Telegram chat_id) and synchronized across:
-- News content translation
-- Telegram bot menu labels
-- Section headers in messages
-
-## Project Structure
-
-```
-News-Bit/
-├── main.py                    # Auto mode (30 min) + manual run
-├── on_demand_analyzer.py      # Interactive event handler
-├── config.json                # Default RSS feed list
-├── context.txt                # User profile & interests (personalization)
-├── requirements.txt           # Python dependencies
-├── processed_articles.jsonl   # Article deduplication memory
-├── user_prefs.json            # User settings (language, auto mode)
-├── modules/
-│   ├── ai_processor.py        # OpenRouter AI filtering, analysis & translation
-│   ├── content_collector.py   # RSS feed reader (30-min window)
-│   ├── memory_manager.py      # Persistence layer
-│   ├── settings_manager.py    # Language & auto mode settings
-│   ├── telegram_sender.py     # Telegram API integration (multi-language)
-│   └── web_scraper.py         # HTML content extraction
-└── cloudflare-worker/
-    └── index.js               # Cloudflare Worker (webhook handler + KV state)
-```
+- **Webhook**: Handles user commands and settings
+- **Cron (*/30 * * * *)**: Auto-sends news to users with auto_mode enabled
 
 ## Setup
 
-### 1. Clone & Install
+### 1. Deploy to Cloudflare
 
 ```bash
-git clone <your-repo-url>
-cd News-Bit
-pip install -r requirements.txt
+wrangler deploy
 ```
 
-### 2. Environment Variables
+### 2. Set Secrets
 
-Create a `.env` file:
-
-```env
-OPENROUTER_API_KEY=your_openrouter_api_key
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-TELEGRAM_CHAT_ID=your_telegram_chat_id
+```bash
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put OPENROUTER_API_KEY
 ```
 
-### 3. Personalization
+### 3. Setup Telegram Webhook
 
-- **`context.txt`** — Write your goals, interests, and professional context here. This is the most important file — the AI tailors all analyses based on it.
-- **`config.json`** — Edit the default RSS feed list. Users can also add/remove feeds interactively through the bot.
+Go to @BotFather → /setwebhook → Enter:
+```
+https://news-bit-worker.amirarmaniya.workers.dev
+```
 
-### 4. Cloudflare Worker
+### 4. Create KV Namespaces
 
-Deploy the worker in `cloudflare-worker/` with:
+```bash
+wrangler kv namespace create USERS_KV
+wrangler kv namespace create ARTICLES_KV
+```
 
-- A **KV Namespace Binding** named `STRATEGIC_RADAR_USERS`
-- Environment secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GITHUB_TOKEN`, `GITHUB_REPO`
+Update `wrangler.toml` with the new IDs.
 
-### 5. GitHub Actions
+## Bot Commands
 
-Set up a workflow that runs `main.py` on a schedule (e.g., weekly) and `on_demand_analyzer.py` when triggered by the Cloudflare Worker.
+| Command | Description |
+|---------|-------------|
+| `/start` | Show main menu |
+| `/settings` | Open settings (language, auto mode) |
+| `/news` | Fetch latest news |
 
-## Dependencies
+## Branches
 
-| Package | Purpose |
-|---------|---------|
-| `feedparser` | RSS feed parsing |
-| `openai` | OpenRouter AI API client |
-| `python-telegram-bot` | Telegram bot API |
-| `beautifulsoup4` | HTML content extraction |
-| `requests` | HTTP client |
-| `python-dotenv` | Environment variable loading |
+| Branch | Description |
+|--------|-------------|
+| `main` | Active bot (Cloudflare Worker) |
+| `auto-news-detective` | Auto mode with per-user settings |
+| `weekly-news-sender` | Legacy version (weekly schedule) |
+
+## Tech Stack
+
+- **Cloudflare Worker** — Serverless bot backend
+- **Cloudflare KV** — User settings storage
+- **Cloudflare Cron** — Scheduled news delivery
+- **OpenRouter API** — AI analysis and translation
+- **Telegram Bot API** — User interface
