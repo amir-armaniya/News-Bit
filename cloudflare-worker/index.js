@@ -48,7 +48,8 @@ function parseRSS(xml) {
       const m = item.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`, "is"));
       return m ? m[1].trim() : "";
     };
-    items.push({ title: get("title"), link: get("link"), desc: get("description") });
+    const pubDate = get("pubDate");
+    items.push({ title: get("title"), link: get("link"), desc: get("description"), pubDate });
   }
   return items;
 }
@@ -58,30 +59,39 @@ async function fetchArticles(env, chatId, lang) {
   const userKey = `seen_${String(chatId)}_${lang}`;
   const seen = JSON.parse(await env.ARTICLES_KV.get(userKey) || "[]");
   const articles = [];
+  const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
 
   for (const feed of DEFAULT_FEEDS) {
     try {
       const res = await fetch(feed.url, { headers: { "User-Agent": "NewsBit/1.0" } });
       const xml = await res.text();
       for (const item of parseRSS(xml)) {
-        if (!seen.includes(item.link)) {
-          articles.push({ ...item, source: feed.name });
-          seen.push(item.link);
+        // Skip if already seen
+        if (seen.includes(item.link)) continue;
+
+        // Skip if article is older than 30 minutes
+        if (item.pubDate) {
+          const pubTime = new Date(item.pubDate).getTime();
+          if (pubTime < cutoff) continue;
         }
+
+        articles.push({ ...item, source: feed.name });
+        seen.push(item.link);
       }
     } catch (e) {
       console.error(`Feed error: ${feed.name}`, e);
     }
   }
 
-  await env.ARTICLES_KV.put(userKey, JSON.stringify(seen.slice(-200)));
+  // Keep ALL seen articles (no truncation) to prevent duplicates
+  await env.ARTICLES_KV.put(userKey, JSON.stringify(seen));
   return articles.slice(0, 5);
 }
 
 // AI analysis
 async function analyzeArticle(env, article) {
   if (!env.OPENROUTER_API_KEY) return null;
-  
+
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -93,9 +103,22 @@ async function analyzeArticle(env, article) {
         model: "google/gemma-4-26b-a4b-it:free",
         messages: [{
           role: "user",
-          content: `Analyze this news briefly:\nTitle: ${article.title}\nSummary: ${article.desc}\n\nProvide:\n1. Summary (2-3 sentences)\n2. Why it matters\n3. Key takeaway`
+          content: `You are a professional tech news analyst. Analyze this article and respond in EXACTLY this format (in Persian/Farsi):
+
+HEADLINE: [emoji] [headline in Persian, max 10 words]
+
+KEY_POINTS:
+• [bullet point 1]
+• [bullet point 2]
+
+WHY_MATTERS:
+[2-3 sentences explaining why this matters for startup founders, in Persian]
+
+---
+Article Title: ${article.title}
+Article Summary: ${article.desc}`
         }],
-        max_tokens: 300
+        max_tokens: 500
       })
     });
     const data = await res.json();
@@ -106,29 +129,30 @@ async function analyzeArticle(env, article) {
   }
 }
 
-// Translation
-async function translate(env, text, lang) {
-  if (lang === "en" || !env.OPENROUTER_API_KEY) return text;
-  
-  const langNames = { fa: "Persian", ar: "Arabic" };
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemma-4-26b-a4b-it:free",
-        messages: [{ role: "user", content: `Translate to ${langNames[lang]}:\n${text}` }],
-        max_tokens: 500
-      })
-    });
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || text;
-  } catch (e) {
-    return text;
+// Format message for Telegram
+function formatNews(analysis, article, lang) {
+  if (!analysis) {
+    let text = `📰 <b>${article.title}</b>\nSource: ${article.source}\n\n${article.desc}`;
+    if (lang === "fa") text = `📰 <b>${article.title}</b>\nمنبع: ${article.source}\n\n${article.desc}`;
+    return text.substring(0, 4000);
   }
+
+  // Parse the AI analysis
+  let headline = "", keyPoints = "", whyMatters = "";
+  const lines = analysis.split("\n");
+  for (const line of lines) {
+    if (line.startsWith("HEADLINE:")) headline = line.replace("HEADLINE:", "").trim();
+    else if (line.startsWith("•")) keyPoints += line + "\n";
+    else if (line.startsWith("WHY_MATTERS:")) whyMatters = line.replace("WHY_MATTERS:", "").trim();
+    else if (whyMatters && !line.startsWith("---")) whyMatters += " " + line.trim();
+  }
+
+  if (!headline) headline = article.title;
+  if (!keyPoints) keyPoints = `• ${article.desc.substring(0, 100)}...`;
+
+  const sourceText = lang === "fa" ? "منبع" : lang === "ar" ? "المصدر" : "Source";
+
+  return `${headline}\n\n${keyPoints}\n\n💡 ${lang === "fa" ? "چرا این مهم است؟" : lang === "ar" ? "لماذا هذا مهم؟" : "Why this matters?"}\n${whyMatters}\n\n🔗 ${sourceText}: ${article.source}`;
 }
 
 // Menu texts
@@ -189,9 +213,9 @@ export default {
           await sendMsg(token, chatId, "No new articles found.");
         } else {
           for (const art of articles) {
-            let text = `<b>${art.title}</b>\nSource: ${art.source}\n\n${art.desc}`;
-            if (user.lang !== "en") text = await translate(env, text, user.lang);
-            await sendMsg(token, chatId, text.substring(0, 4000));
+            const analysis = await analyzeArticle(env, art);
+            const text = formatNews(analysis, art, user.lang);
+            await sendMsg(token, chatId, text);
             await new Promise(r => setTimeout(r, 1000));
           }
         }
@@ -221,9 +245,9 @@ export default {
         await sendMsg(token, chatId, "No new articles found.");
       } else {
         for (const art of articles) {
-          let text = `<b>${art.title}</b>\nSource: ${art.source}\n\n${art.desc}`;
-          if (user.lang !== "en") text = await translate(env, text, user.lang);
-          await sendMsg(token, chatId, text.substring(0, 4000));
+          const analysis = await analyzeArticle(env, art);
+          const text = formatNews(analysis, art, user.lang);
+          await sendMsg(token, chatId, text);
           await new Promise(r => setTimeout(r, 1000));
         }
       }
