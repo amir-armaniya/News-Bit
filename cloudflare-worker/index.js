@@ -53,9 +53,9 @@ function parseRSS(xml) {
   return items;
 }
 
-// Get recent articles from feeds (per-user to avoid duplicates)
-async function fetchArticles(env, chatId) {
-  const userKey = `seen_${String(chatId)}`;
+// Get recent articles from feeds (per-user per-language to avoid duplicates)
+async function fetchArticles(env, chatId, lang) {
+  const userKey = `seen_${String(chatId)}_${lang}`;
   const seen = JSON.parse(await env.ARTICLES_KV.get(userKey) || "[]");
   const articles = [];
 
@@ -74,7 +74,6 @@ async function fetchArticles(env, chatId) {
     }
   }
 
-  // Save and return only NEW articles
   await env.ARTICLES_KV.put(userKey, JSON.stringify(seen.slice(-200)));
   return articles.slice(0, 5);
 }
@@ -185,7 +184,7 @@ export default {
         const autoStatus = user.auto ? m.on : m.off;
         await sendMsg(token, chatId, `${m.auto}: ${autoStatus}`);
       } else if (data === "sendnews") {
-        const articles = await fetchArticles(env, chatId);
+        const articles = await fetchArticles(env, chatId, user.lang);
         if (articles.length === 0) {
           await sendMsg(token, chatId, "No new articles found.");
         } else {
@@ -217,7 +216,7 @@ export default {
         ]
       });
     } else if (text === "/news" || text === "news") {
-      const articles = await fetchArticles(env, chatId);
+      const articles = await fetchArticles(env, chatId, user.lang);
       if (articles.length === 0) {
         await sendMsg(token, chatId, "No new articles found.");
       } else {
@@ -246,7 +245,7 @@ export default {
           const user = JSON.parse(await env.USERS_KV.get(key.name));
           if (!user.auto) continue;
 
-          const articles = await fetchArticles(env, key.name);
+          const articles = await fetchArticles(env, key.name, user.lang);
           if (articles.length === 0) continue;
 
           const token = env.TELEGRAM_BOT_TOKEN;
