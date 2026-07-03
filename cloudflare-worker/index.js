@@ -90,7 +90,7 @@ async function analyzeArticle(env, article) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b:free",
+        model: "google/gemma-4-26b-a4b-it:free",
         messages: [{
           role: "user",
           content: `Analyze this news briefly:\nTitle: ${article.title}\nSummary: ${article.desc}\n\nProvide:\n1. Summary (2-3 sentences)\n2. Why it matters\n3. Key takeaway`
@@ -119,7 +119,7 @@ async function translate(env, text, lang) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b:free",
+        model: "google/gemma-4-26b-a4b-it:free",
         messages: [{ role: "user", content: `Translate to ${langNames[lang]}:\n${text}` }],
         max_tokens: 500
       })
